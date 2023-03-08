@@ -8,37 +8,31 @@ library("ggrepel")
 require(data.table)
 
 team_plots_dir <- "team_plots/"
+dir.create(team_plots_dir)
 unlink(paste0(team_plots_dir, "*"))
 
 teams <- read.csv("./male_teams.csv")
 players <- read.csv("./male_players (legacy).csv")
 coaches <- read.csv("./male_coaches.csv")
 
-coachID <- coaches$coach_id
-
-team_names <- teams$team_name
-
 modifiedTeams <- subset(teams, team_name == unique(teams$team_name)[1:100])
 
 months <- c("-02-", "-06-", "-09-", "-12-")
 
-lastTeams <- data.frame(matrix(ncol = 54, nrow = 0))
-colnames(lastTeams) <- names(modifiedTeams)
-for (month in months){
-    rbind(lastTeams, filter(modifiedTeams, fifa_update_date %like% month))
-}
+#lastTeams <- data.frame(matrix(ncol = 54, nrow = 0))
+#colnames(lastTeams) <- names(modifiedTeams)
+#for (month in months){
+#    rbind(lastTeams, filter(modifiedTeams, fifa_update_date %like% month))
+#}
 
-new_df <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_update_date), ]
+lastTeams <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_update_date), ]
 
-plot(new_df$overall, new_df$fifa_update_date, labels=new_df$team_name)
-
-for (team in new_df$team_name){
-    club_df <- subset(new_df, team_name == team)
-    club_df
+for (team in modifiedTeams$team_name){
+    club_df <- subset(modifiedTeams, team_name == team)
     plot <- ggplot(club_df, aes(club_df$fifa_update_date, club_df$overall)) +
         geom_point() +
         geom_text_repel(aes(label = club_df$team_name))
-    ggsave(paste0(team_plots_dir, team, "_plot.png"), plot)
+    ggsave(paste0(team_plots_dir, team, ".png"), plot)
 }
 
 #teamPerformance <- data.frame(
@@ -52,11 +46,13 @@ for (team in new_df$team_name){
 #    coach = teams[, c(16)]
 #)
 
+#####################################################################
 
-model <- lm(overall ~ coach, data=teamPerformance)
+modifiedPlayers <- subset(players, player_positions == c("GK", "CB", "LB", "RB"))
 
-plot(teamPerformance$coach, teamPerformance$overall)
-abline(model)
-unique(teamPerformance$team_name)
-amesData %>% group_by(Foundation) %>% summarise(count = n())
-names(amesData)
+#####################################################################
+
+teams2 <- teams
+colnames(teams2)[10] <- "nat_id"
+players2 %>% inner_join(teams, on = "club_team_id == team_id")
+foreignPlayers
