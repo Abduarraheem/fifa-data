@@ -28,12 +28,22 @@ months <- c("-02-", "-06-", "-09-", "-12-")
 lastTeams <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_update_date), ]
 
 for (team in unique(modifiedTeams$team_name)){
-    club_df <- subset(modifiedTeams, team_name == team)
+    team_df <- subset(modifiedTeams, team_name == team) # filter out countries.
+    # for (i in seq_along(team_df)){
+    #     index <- coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]
+    #     print(index)
+    # }
     # write(team, file="output.txt", append=TRUE)
-    plot <- ggplot(club_df, aes(club_df$fifa_update_date, club_df$overall)) +
-        geom_point() +
-        geom_text_repel(aes(label = club_df$team_name))
-    suppressMessages(ggsave(paste0(team_plots_dir, team, ".png"), plot))
+    # print(team_df$coach_id)
+    # for (id in unique(team_df$coach_id)){
+    #     index <- coaches[which(id == coaches$coach_id), ] 
+    #     # print(index$short_name)
+    #     print(id)
+    # }
+    plot <- ggplot(team_df, aes(team_df$fifa_update_date, team_df$overall)) +
+            geom_point() +
+            geom_text_repel(aes(label = paste(team_df$team_name, "/", index$short_name)))
+            suppressMessages(ggsave(paste0(team_plots_dir, team, ".png"), plot))
 }
 
 #teamPerformance <- data.frame(
