@@ -7,8 +7,11 @@ library("ggplot2")
 library("ggrepel")
 require(data.table)
 
+team_plots_dir <- "team_plots/"
+unlink(paste0(team_plots_dir, "*"))
+
 teams <- read.csv("./male_teams.csv")
-players <- read.csv("./male_players.csv")
+players <- read.csv("./male_players (legacy).csv")
 coaches <- read.csv("./male_coaches.csv")
 
 coachID <- coaches$coach_id
@@ -29,13 +32,13 @@ new_df <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_
 
 plot(new_df$overall, new_df$fifa_update_date, labels=new_df$team_name)
 
-for (team in modifiedTeams$team_name){
+for (team in new_df$team_name){
     club_df <- subset(new_df, team_name == team)
     club_df
     plot <- ggplot(club_df, aes(club_df$fifa_update_date, club_df$overall)) +
         geom_point() +
         geom_text_repel(aes(label = club_df$team_name))
-    ggsave(paste("plots/", team, "_plot.png"), plot)
+    ggsave(paste0(team_plots_dir, team, "_plot.png"), plot)
 }
 
 #teamPerformance <- data.frame(
