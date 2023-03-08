@@ -29,11 +29,14 @@ new_df <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_
 
 plot(new_df$overall, new_df$fifa_update_date, labels=new_df$team_name)
 
-club_df <- subset(new_df, team_name == "Wolverhampton Wanderers")
-club_df
-ggplot(club_df, aes(club_df$fifa_update_date, club_df$overall)) +
-    geom_point() +
-    geom_text_repel(aes(label = club_df$team_name))
+for (team in modifiedTeams$team_name){
+    club_df <- subset(new_df, team_name == team)
+    club_df
+    plot <- ggplot(club_df, aes(club_df$fifa_update_date, club_df$overall)) +
+        geom_point() +
+        geom_text_repel(aes(label = club_df$team_name))
+    ggsave(paste("plots/", team, "_plot.png"), plot)
+}
 
 #teamPerformance <- data.frame(
 #    team_id = teams[, 1],
