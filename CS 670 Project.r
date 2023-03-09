@@ -17,7 +17,7 @@ coaches <- read.csv("./male_coaches.csv")
 
 modifiedTeams <- subset(teams, team_name == unique(teams$team_name)[1:100])
 
-months <- c("-02-", "-06-", "-09-", "-12-")
+#months <- c("-02-", "-06-", "-09-", "-12-")
 
 #lastTeams <- data.frame(matrix(ncol = 54, nrow = 0))
 #colnames(lastTeams) <- names(modifiedTeams)
@@ -25,7 +25,7 @@ months <- c("-02-", "-06-", "-09-", "-12-")
 #    rbind(lastTeams, filter(modifiedTeams, fifa_update_date %like% month))
 #}
 
-lastTeams <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_update_date), ]
+#lastTeams <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_update_date), ]
 
 for (team in unique(modifiedTeams$team_name)){
     team_df <- subset(modifiedTeams, team_name == team) # filter out countries.
@@ -59,11 +59,55 @@ for (team in unique(modifiedTeams$team_name)){
 
 #####################################################################
 
-modifiedPlayers <- subset(players, player_positions == c("GK", "CB", "LB", "RB"))
+modifiedPlayers <- subset(players, club_position ==
+c("CB", "LB", "RB", "RWB", "LWB", "SW"))
+
+lastPlayers <- matrix(ncol = 5, nrow = 0)
+
+colnames(lastPlayers) <- c(
+    "defender",
+    "goalkeeper",
+    "clubName",
+    "gkOverall",
+    "gkOverallLater"
+)
+
+for (row in seq_len(nrow(modifiedPlayers))) {
+    date <- as.Date(modifiedPlayers[row, "club_joined_date"])
+    formattedFifaUpdate <- as.Date(modifiedPlayers$fifa_update_date)
+    index <- which.min(abs(formattedFifaUpdate - date))
+
+    print(index)
+    filterData <- modifiedPlayers[which(
+        modifiedPlayers$fifa_update_date == modifiedPlayers$fifa_update_date[index] &
+        modifiedPlayers$club_team_id == modifiedPlayers[row, "club_team_id"] &
+        modifiedPlayers$club_position == "GK"), ]
+    print(nrow(filterData))
+    
+    if (nrow(filterData) == 0) {
+        next
+    }
+
+    lastPlayers[nrow(lastPlayers) + 1,] <- c(modifiedPlayers$short_name,
+    filterData$short_name, filterData$club_name, filterData$overall, NULL)
+}
+
+lastPlayers
+
+nrow(lastPlayers)
+
+
+# find when players join new club
+# grab team name
+# grab GK
+# grab overall GK
+# after year or time grab overall again
 
 #####################################################################
 
 teams2 <- teams
+players2 <- players
 colnames(teams2)[10] <- "nat_id"
-players2 %>% inner_join(teams, on = "club_team_id == team_id")
-foreignPlayers
+names(teams2)
+players2 %>% inner_join(teams2, by=c("club_team_id" = "team_id"))
+foreignPlayers <- subset(players2, nationality_id != nat_id)
