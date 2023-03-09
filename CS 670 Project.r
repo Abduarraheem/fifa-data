@@ -15,35 +15,33 @@ teams <- read.csv("./male_teams.csv")
 players <- read.csv("./male_players (legacy).csv")
 coaches <- read.csv("./male_coaches.csv")
 
-modifiedTeams <- subset(teams, team_name == unique(teams$team_name)[1:100])
+modifiedTeams <- subset(teams, team_name %in% unique(teams$team_name)[1:100])
 
-#months <- c("-02-", "-06-", "-09-", "-12-")
+months <- c("-02-")
 
-#lastTeams <- data.frame(matrix(ncol = 54, nrow = 0))
-#colnames(lastTeams) <- names(modifiedTeams)
-#for (month in months){
-#    rbind(lastTeams, filter(modifiedTeams, fifa_update_date %like% month))
-#}
+lastTeams <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_update_date), ]
 
-#lastTeams <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_update_date), ]
+coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
+colnames(coachNames) <- c("name")
 
-for (team in unique(modifiedTeams$team_name)){
-    team_df <- subset(modifiedTeams, team_name == team) # filter out countries.
-    # for (i in seq_along(team_df)){
-    #     index <- coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]
-    #     print(index)
-    # }
-    # write(team, file="output.txt", append=TRUE)
-    # print(team_df$coach_id)
-    # for (id in unique(team_df$coach_id)){
-    #     index <- coaches[which(id == coaches$coach_id), ] 
-    #     # print(index$short_name)
-    #     print(id)
-    # }
+for (team in unique(lastTeams$team_name)){
+    team_df <- subset(lastTeams, team_name == team) # filter out countries.
+
+    for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
+        coachNames[nrow(coachNames) + 1, ] <- 
+        c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+    }
+
     plot <- ggplot(team_df, aes(team_df$fifa_update_date, team_df$overall)) +
-            geom_point() +
-            geom_text_repel(aes(label = paste(team_df$team_name, "/", index$short_name)))
-            suppressMessages(ggsave(paste0(team_plots_dir, team, ".png"), plot))
+        ggtitle("Coach and Team Performance Overall") +
+        xlab("Date") +
+        ylab("Overall Rating") +
+        geom_point() +
+        geom_text_repel(aes(label = paste(team_df$team_name, "/", coachNames$name)))
+    suppressMessages(ggsave(paste0(team_plots_dir, team, ".png"), width=20, height=4, plot))
+
+    coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
+    colnames(coachNames) <- c("name")
 }
 
 #teamPerformance <- data.frame(
@@ -59,10 +57,10 @@ for (team in unique(modifiedTeams$team_name)){
 
 #####################################################################
 
-modifiedPlayers <- subset(players, club_position ==
+modifiedPlayers <- subset(players, club_position %in%
 c("CB", "LB", "RB", "RWB", "LWB", "SW"))
 
-lastPlayers <- matrix(ncol = 5, nrow = 0)
+lastPlayers <- data.frame(matrix(ncol = 5, nrow = 0))
 
 colnames(lastPlayers) <- c(
     "defender",
@@ -77,18 +75,16 @@ for (row in seq_len(nrow(modifiedPlayers))) {
     formattedFifaUpdate <- as.Date(modifiedPlayers$fifa_update_date)
     index <- which.min(abs(formattedFifaUpdate - date))
 
-    print(index)
     filterData <- modifiedPlayers[which(
         modifiedPlayers$fifa_update_date == modifiedPlayers$fifa_update_date[index] &
         modifiedPlayers$club_team_id == modifiedPlayers[row, "club_team_id"] &
         modifiedPlayers$club_position == "GK"), ]
-    print(nrow(filterData))
     
     if (nrow(filterData) == 0) {
         next
     }
 
-    lastPlayers[nrow(lastPlayers) + 1,] <- c(modifiedPlayers$short_name,
+    lastPlayers[nrow(lastPlayers) + 1, ] <- c(modifiedPlayers$short_name,
     filterData$short_name, filterData$club_name, filterData$overall, NULL)
 }
 
