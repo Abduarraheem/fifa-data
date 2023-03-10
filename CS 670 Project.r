@@ -57,8 +57,15 @@ for (team in unique(lastTeams$team_name)){
 
 #####################################################################
 
+defGK_plots_dir <- "defGK_plots/"
+dir.create(defGK_plots_dir)
+unlink(paste0(defGK_plots_dir, "*"))
+
 modifiedPlayers <- subset(players, club_position %in%
-c("CB", "LB", "RB", "RWB", "LWB", "SW"))
+c("CB", "LB", "RB", "RWB", "LWB", "SW") )
+
+modifiedPlayers <- subset(modifiedPlayers, short_name %in%
+unique(modifiedPlayers$short_name)[1:100])
 
 lastPlayers <- data.frame(matrix(ncol = 5, nrow = 0))
 
@@ -75,29 +82,26 @@ for (row in seq_len(nrow(modifiedPlayers))) {
     formattedFifaUpdate <- as.Date(modifiedPlayers$fifa_update_date)
     index <- which.min(abs(formattedFifaUpdate - date))
 
-    filterData <- modifiedPlayers[which(
-        modifiedPlayers$fifa_update_date == modifiedPlayers$fifa_update_date[index] &
-        modifiedPlayers$club_team_id == modifiedPlayers[row, "club_team_id"] &
-        modifiedPlayers$club_position == "GK"), ]
-    
+    filterData <- subset(players, 
+        as.Date(fifa_update_date) >= as.Date(modifiedPlayers$fifa_update_date[index]) &
+        club_team_id == modifiedPlayers[row, "club_team_id"] &
+        club_position == "GK")
+
     if (nrow(filterData) == 0) {
         next
     }
 
-    lastPlayers[nrow(lastPlayers) + 1, ] <- c(modifiedPlayers$short_name,
-    filterData$short_name, filterData$club_name, filterData$overall, NULL)
+    plot <- ggplot(filterData, aes(filterData$fifa_update_date, filterData$overall)) +
+    ggtitle("GK Overall as Cause of Defender") +
+    xlab("Date") +
+    ylab("Overall Rating") +
+    geom_point() +
+    geom_text_repel(aes(label = paste(filterData$short_name, "/", modifiedPlayers[row,]$short_name)))
+    suppressMessages(ggsave(paste0(defGK_plots_dir, filterData$short_name[1], ".png"), width=20, height=4, plot))    
+
+    lastPlayers[nrow(lastPlayers) + 1, ] <- c(modifiedPlayers$short_name[row],
+    filterData$short_name[1], filterData$club_name[1], filterData$overall[1], filterData$overall[1])
 }
-
-lastPlayers
-
-nrow(lastPlayers)
-
-
-# find when players join new club
-# grab team name
-# grab GK
-# grab overall GK
-# after year or time grab overall again
 
 #####################################################################
 
