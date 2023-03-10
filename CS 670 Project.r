@@ -44,16 +44,65 @@ for (team in unique(lastTeams$team_name)){
     colnames(coachNames) <- c("name")
 }
 
-#teamPerformance <- data.frame(
-#    team_id = teams[, 1],
-#    team_name = teams[, c(6)],
-#    year = teams[, c(4)],
-#    overall = teams[, c(12)],
-#   attack = teams[, c(13)],
-#    midfield = teams[, c(14)],
-#   defense = teams[, c(15)],
-#    coach = teams[, c(16)]
-#)
+#####################################################################
+
+unlink(paste0(team_plots_dir, "*"))
+
+coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
+colnames(coachNames) <- c("name")
+
+for (team in unique(teams$team_name)){
+    team_df <- subset(teams, team_name == team) # need to filter out countries.
+
+    if (length(unique(team_df$coach_id)) <= 1) {
+        next
+    }
+
+    finalTeamDF <- data.frame(matrix(ncol = 54, nrow = 0))
+    colnames(finalTeamDF) <- names(team_df)
+
+    for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
+        sname <- c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        
+        if (nrow(coachNames) == 0) {
+            finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+
+            coachNames[nrow(coachNames) + 1, ] <- 
+                c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        }
+        else if (i == nrow(team_df)) {
+            finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+
+            coachNames[nrow(coachNames) + 1, ] <- 
+                c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        }
+        else if (tail(coachNames, 1)[1, 1] == sname & nrow(coachNames) > 0) {
+            #print(sname)
+            next
+        }
+        else {
+            finalTeamDF <- rbind(finalTeamDF, team_df[i - 1, ])
+            coachNames[nrow(coachNames) + 1, ] <- 
+                c(coaches[which(team_df[i - 1, ]$coach_id == coaches$coach_id), ]$short_name)
+
+            finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+            coachNames[nrow(coachNames) + 1, ] <- 
+                c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        }
+    }
+    print(nrow(team_df))
+    print(nrow(finalTeamDF))
+    plot <- ggplot(finalTeamDF, aes(finalTeamDF$fifa_update_date, finalTeamDF$overall)) +
+        ggtitle("Coach and Team Performance Overall") +
+        xlab("Date") +
+        ylab("Overall Rating") +
+        geom_point() +
+        geom_text_repel(aes(label = paste(finalTeamDF$team_name, "/", coachNames$name)))
+    suppressMessages(ggsave(paste0(team_plots_dir, team, ".png"), width=20, height=4, plot))
+
+    coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
+    colnames(coachNames) <- c("name")
+}
 
 #####################################################################
 
