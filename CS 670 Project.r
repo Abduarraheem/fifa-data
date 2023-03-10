@@ -51,8 +51,8 @@ unlink(paste0(team_plots_dir, "*"))
 coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
 colnames(coachNames) <- c("name")
 
-for (team in unique(teams$team_name)){
-    team_df <- subset(teams, team_name == team) # need to filter out countries.
+for (team in unique(teams$team_id)){
+    team_df <- subset(teams, team_id == team) # need to filter out countries.
 
     if (length(unique(team_df$coach_id)) <= 1) {
         next
@@ -98,7 +98,7 @@ for (team in unique(teams$team_name)){
         ylab("Overall Rating") +
         geom_point() +
         geom_text_repel(aes(label = paste(finalTeamDF$team_name, "/", coachNames$name)))
-    suppressMessages(ggsave(paste0(team_plots_dir, team, ".png"), width=20, height=4, plot))
+    suppressMessages(ggsave(paste0(team_plots_dir, finalTeamDF$team_name[1], ".png"), width=30, height=4, plot))
 
     coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
     colnames(coachNames) <- c("name")
