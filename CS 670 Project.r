@@ -25,7 +25,7 @@ coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
 colnames(coachNames) <- c("name")
 
 for (team in unique(lastTeams$team_name)){
-    team_df <- subset(lastTeams, team_name == team) # filter out countries.
+    team_df <- subset(lastTeams, team_name == team) # need to filter out countries.
 
     for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
         coachNames[nrow(coachNames) + 1, ] <- 
@@ -87,20 +87,19 @@ for (row in seq_len(nrow(modifiedPlayers))) {
         club_team_id == modifiedPlayers[row, "club_team_id"] &
         club_position == "GK")
 
-    if (nrow(filterData) == 0) {
-        next
+    if (nrow(filterData) != 0) {
+        plot <- ggplot(filterData, aes(filterData$fifa_update_date, filterData$overall)) +
+        ggtitle("GK Overall as Cause of Defender") +
+        xlab("Date") +
+        ylab("Overall Rating") +
+        geom_point() +
+        geom_text_repel(aes(label = paste(filterData$short_name, "/", modifiedPlayers[row,]$short_name)))
+        suppressMessages(ggsave(paste0(defGK_plots_dir, modifiedPlayers[row,]$short_name, ".png"), width=20, height=4, plot))    
+
+        lastPlayers[nrow(lastPlayers) + 1, ] <- c(modifiedPlayers$short_name[row],
+        filterData$short_name[1], filterData$club_name[1], filterData$overall[1], filterData$overall[1])
     }
 
-    plot <- ggplot(filterData, aes(filterData$fifa_update_date, filterData$overall)) +
-    ggtitle("GK Overall as Cause of Defender") +
-    xlab("Date") +
-    ylab("Overall Rating") +
-    geom_point() +
-    geom_text_repel(aes(label = paste(filterData$short_name, "/", modifiedPlayers[row,]$short_name)))
-    suppressMessages(ggsave(paste0(defGK_plots_dir, filterData$short_name[1], ".png"), width=20, height=4, plot))    
-
-    lastPlayers[nrow(lastPlayers) + 1, ] <- c(modifiedPlayers$short_name[row],
-    filterData$short_name[1], filterData$club_name[1], filterData$overall[1], filterData$overall[1])
 }
 
 #####################################################################
