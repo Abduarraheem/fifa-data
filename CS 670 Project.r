@@ -64,7 +64,12 @@ for (team in unique(teams$team_id)){
     for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
         sname <- c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
         
-        if (nrow(coachNames) == 0) {
+        if (identical(sname, character(0))) {
+            print(sname)
+            print(team_df[i, ]$coach_id)
+            next
+        }
+        else if (nrow(coachNames) == 0) {
             finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
 
             coachNames[nrow(coachNames) + 1, ] <- 
@@ -77,7 +82,7 @@ for (team in unique(teams$team_id)){
                 c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
         }
         else if (tail(coachNames, 1)[1, 1] == sname & nrow(coachNames) > 0) {
-            #print(sname)
+            print(sname)
             next
         }
         else {
@@ -90,8 +95,8 @@ for (team in unique(teams$team_id)){
                 c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
         }
     }
-    print(nrow(team_df))
-    print(nrow(finalTeamDF))
+    #print(nrow(team_df))
+    #print(nrow(finalTeamDF))
     plot <- ggplot(finalTeamDF, aes(finalTeamDF$fifa_update_date, finalTeamDF$overall)) +
         ggtitle("Coach and Team Performance Overall") +
         xlab("Date") +
