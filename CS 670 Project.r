@@ -5,6 +5,7 @@ library("dplyr")
 library("ISLR2")
 library("ggplot2")
 library("ggrepel")
+library("randomForest")
 require(data.table)
 
 team_plots_dir <- "team_plots/"
@@ -108,6 +109,29 @@ for (team in unique(teams$team_id)){
     coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
     colnames(coachNames) <- c("name")
 }
+#====================================================================
+
+# model <- glm(overall ~ coach_id + fifa_update_date + (coach_id * fifa_update_date), data = teams, family = gaussian())
+# results <- predict(model, type="response")
+# results
+
+newTeams <- data.frame(matrix(ncol = 54, nrow = 0))
+colnames(newTeams) <- names(teams)
+for (team in unique(teams$team_id)){
+    team_df <- subset(teams, team_id == team) # could filter out countries.
+
+    if (length(unique(team_df$coach_id)) > 1) {
+        newTeams <- rbind(newTeams, team_df)
+    }
+}
+
+rf <- randomForest(overall > mean(overall) ~ ., data=newTeams, ntree=500, mtry=7, proximity=TRUE, na.action=na.exclude)
+print(rf)
+predictions <- predict(rf, newTeams, type="response")
+pred <- ifelse(newTeams$overall > mean(newTeams$overall), 1, 0)
+length(predictions)
+ncol(pred)
+confusionMatrix(factor(prediction, levels=1:32643), factor(prediction, levels=1:32643))
 
 #####################################################################
 
