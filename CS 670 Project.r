@@ -6,6 +6,7 @@ library("ISLR2")
 library("ggplot2")
 library("ggrepel")
 library("randomForest")
+library("ROCR")
 require(data.table)
 
 team_plots_dir <- "team_plots/"
@@ -125,14 +126,27 @@ for (team in unique(teams$team_id)){
     }
 }
 
-rf <- randomForest(overall > mean(overall) ~ ., data=newTeams, ntree=500, mtry=7, proximity=TRUE, na.action=na.exclude)
-print(rf)
-predictions <- predict(rf, newTeams, type="response")
-pred <- ifelse(newTeams$overall > mean(newTeams$overall), 1, 0)
-length(predictions)
-ncol(pred)
-confusionMatrix(factor(prediction, levels=1:32643), factor(prediction, levels=1:32643))
+set.seed(123)
+split <- 0.7
+sample <- sample(nrow(newTeams), split*nrow(newTeams))
+train_data <- newTeams[sample, ]
+test_data <- newTeams[-sample, ]
+rf <- randomForest(as.factor(overall > mean(overall)) ~ .
+    ,data=train_data, ntree=500, mtry=7,
+     importance=TRUE, na.action=na.exclude)
+rf$confusion
+rf.predictions <- predict(rf, test_data)
+confusionMatrix(rf.predictions, as.factor(test_data$overall > mean(test_data$overall)))
+importance(rf)
+varImpPlot(rf)
 
+
+pred_2 <- predict(rf, type="prob")
+# pred_2 <- na.omit(pred_2)
+prediction <- prediction(pred_2[,2],  as.factor(test_data$overall > mean(test_data$overall)))
+auc <- performance(prediction, "auc")
+
+# roc <-  
 #####################################################################
 
 defGK_plots_dir <- "defGK_plots/"
