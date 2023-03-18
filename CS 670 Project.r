@@ -17,6 +17,8 @@ teams <- read.csv("./male_teams.csv")
 players <- read.csv("./male_players (legacy).csv")
 coaches <- read.csv("./male_coaches.csv")
 
+# Prints out plots for teams only looking at February updates
+
 modifiedTeams <- subset(teams, team_name %in% unique(teams$team_name)[1:100])
 
 months <- c("-02-")
@@ -47,6 +49,8 @@ for (team in unique(lastTeams$team_name)){
 }
 
 #####################################################################
+
+# Prints out plots for teams with more than one coach in dataset
 
 unlink(paste0(team_plots_dir, "*"))
 
@@ -119,34 +123,90 @@ for (team in unique(teams$team_id)){
 newTeams <- data.frame(matrix(ncol = 54, nrow = 0))
 colnames(newTeams) <- names(teams)
 for (team in unique(teams$team_id)){
-    team_df <- subset(teams, team_id == team) # could filter out countries.
+    team_df <- subset(teams, team_id == team)
 
     if (length(unique(team_df$coach_id)) > 1) {
         newTeams <- rbind(newTeams, team_df)
     }
 }
 
-set.seed(123)
+# Replaces NA values in coach_id column with median of coach_id
+val <- median(na.omit(newTeams$coach_id))
+newTeams$coach_id[is.na(newTeams$coach_id)] <- val
+
+# WARNING: will remove coach_id column as well if you dont run above line (has some NA values in it)
+newTeams <- newTeams[, colSums(is.na(newTeams)) == 0] # Remove all columns with any NA values in them
+
+ncol(newTeams)
+
+set.seed(1)
 split <- 0.7
-sample <- sample(nrow(newTeams), split*nrow(newTeams))
+sample <- sample(nrow(newTeams), split * nrow(newTeams))
 train_data <- newTeams[sample, ]
 test_data <- newTeams[-sample, ]
-rf <- randomForest(as.factor(overall > mean(overall)) ~ .
-    ,data=train_data, ntree=500, mtry=7,
-     importance=TRUE, na.action=na.exclude)
-rf$confusion
-rf.predictions <- predict(rf, test_data)
-confusionMatrix(rf.predictions, as.factor(test_data$overall > mean(test_data$overall)))
-importance(rf)
+rf <- randomForest(as.factor(overall > mean(overall)) ~ .,
+    data = train_data, ntree = 500, mtry = 7,
+    importance = TRUE, na.action = na.exclude)
+# rf$confusion
+
+predictions <- predict(rf, test_data)
+confusionMatrix(predictions, as.factor(test_data$overall > mean(test_data$overall)))
+# importance(rf)
 varImpPlot(rf)
 
 
-pred_2 <- predict(rf, type="prob")
-# pred_2 <- na.omit(pred_2)
-prediction <- prediction(pred_2[,2],  as.factor(test_data$overall > mean(test_data$overall)))
-auc <- performance(prediction, "auc")
+pred2 <- predict(rf, test_data, type = "prob")
+# pred2[is.na(pred2)] <- 0
+pred3 <- prediction(pred2[, 2], as.factor(test_data$overall > mean(test_data$overall)))
+auc <- performance(pred3, "auc")@y.values
+auc # Got a good AUC! 0.99
 
-# roc <-  
+#********************************************************************
+
+# Testing midfield strength
+glmMidfield <- glm(as.factor(overall > mean(overall)) ~ midfield,
+    data = train_data, family = binomial())
+
+midfieldPred <- predict(glmMidfield, test_data)
+midfieldPred <- ifelse(midfieldPred >= 0, TRUE, FALSE)
+
+confusionMatrix(as.factor(midfieldPred), as.factor(test_data$overall > mean(test_data$overall))) # Acc: 0.923
+
+#********************************************************************
+
+# Testing attack strength
+glmAttack <- glm(as.factor(overall > mean(overall)) ~ attack,
+    data = train_data, family = binomial())
+
+attackPred <- predict(glmAttack, test_data)
+attackPred <- ifelse(attackPred >= 0, TRUE, FALSE)
+
+confusionMatrix(as.factor(attackPred), as.factor(test_data$overall > mean(test_data$overall))) # Acc: 0.893
+
+#********************************************************************
+
+# Testing defence strength
+glmDefence <- glm(as.factor(overall > mean(overall)) ~ defence,
+    data = train_data, family = binomial()
+)
+
+defencePred <- predict(glmDefence, test_data)
+defencePred <- ifelse(defencePred >= 0, TRUE, FALSE)
+
+confusionMatrix(as.factor(defencePred), as.factor(test_data$overall > mean(test_data$overall))) # Acc: 0.9243
+
+#********************************************************************
+
+# Testing coach_id
+glmCoach <- glm(as.factor(overall > mean(overall)) ~ coach_id + fifa_update_date,
+    data = train_data, family = binomial()
+)
+
+coachPred <- predict(glmCoach, test_data)
+coachPred <- ifelse(coachPred >= 0, TRUE, FALSE)
+
+confusionMatrix(as.factor(coachPred), as.factor(test_data$overall > mean(test_data$overall))) # Acc: 0.6071 with fifa_update, 0.6348 without fifa_update
+
 #####################################################################
 
 defGK_plots_dir <- "defGK_plots/"
