@@ -1,0 +1,230 @@
+
+```{R, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, eval = FALSE)
+```
+
+## Install libraries
+```{R, eval = FALSE}
+install.packages("caret")
+install.packages("glmnet")
+install.packages("tidyverse")
+install.packages("ggrepel")
+install.packages("randomForest")
+install.packages("ROCR")
+```
+## Load libraries
+```{R}
+library("caret")
+library("glmnet")
+library("tidyverse")
+library("dplyr")
+library("ggplot2")
+library("ggrepel")
+library("randomForest")
+library("ROCR")
+require(data.table)
+```
+
+
+## Create and clear directories 
+```{R}
+team_plots_dir <- "team_plots/"
+dir.create(team_plots_dir)
+unlink(paste0(team_plots_dir, "*"))
+```
+## Load datasets
+```{R}
+teams <- read.csv("./male_teams.csv")
+players <- read.csv("./male_players (legacy).csv")
+coaches <- read.csv("./male_coaches.csv")
+```
+
+## Plots for teams only looking at February updates.
+```{R}
+modifiedTeams <- subset(teams, team_name %in% unique(teams$team_name)[1:100])
+
+months <- c("-02-")
+
+lastTeams <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_update_date), ]
+
+coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
+colnames(coachNames) <- c("name")
+
+for (team in unique(lastTeams$team_name)){
+    team_df <- subset(lastTeams, team_name == team) # need to filter out countries.
+
+    for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
+        coachNames[nrow(coachNames) + 1, ] <- 
+        c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+    }
+
+    plot <- ggplot(team_df, aes(team_df$fifa_update_date, team_df$overall)) +
+        ggtitle("Coach and Team Performance Overall") +
+        xlab("Date") +
+        ylab("Overall Rating") +
+        geom_point() +
+        geom_text_repel(aes(label = paste(team_df$team_name, "/", coachNames$name)))
+    suppressMessages(ggsave(paste0(team_plots_dir, team, ".png"), width=20, height=4, plot))
+
+    coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
+    colnames(coachNames) <- c("name")
+}
+```
+
+## Prints out plots for teams with more than one coach in dataset
+```{R}
+unlink(paste0(team_plots_dir, "*"))
+
+coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
+colnames(coachNames) <- c("name")
+
+for (team in unique(teams$team_id)){
+    team_df <- subset(teams, team_id == team) # need to filter out countries.
+
+    if (length(unique(team_df$coach_id)) <= 1) {
+        next
+    }
+
+    finalTeamDF <- data.frame(matrix(ncol = 54, nrow = 0))
+    colnames(finalTeamDF) <- names(team_df)
+
+    for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
+        sname <- c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        
+        if (identical(sname, character(0))) {
+            # print(sname)
+            # print(team_df[i, ]$coach_id)
+            next
+        }
+        else if (nrow(coachNames) == 0) {
+            finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+
+            coachNames[nrow(coachNames) + 1, ] <- 
+                c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        }
+        else if (i == nrow(team_df)) {
+            finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+
+            coachNames[nrow(coachNames) + 1, ] <- 
+                c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        }
+        else if (tail(coachNames, 1)[1, 1] == sname & nrow(coachNames) > 0) {
+            # print(sname)
+            next
+        }
+        else {
+            finalTeamDF <- rbind(finalTeamDF, team_df[i - 1, ])
+            coachNames[nrow(coachNames) + 1, ] <- 
+                c(coaches[which(team_df[i - 1, ]$coach_id == coaches$coach_id), ]$short_name)
+
+            finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+            coachNames[nrow(coachNames) + 1, ] <- 
+                c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        }
+    }
+    #print(nrow(team_df))
+    #print(nrow(finalTeamDF))
+    plot <- ggplot(finalTeamDF, aes(finalTeamDF$fifa_update_date, finalTeamDF$overall)) +
+        ggtitle("Coach and Team Performance Overall") +
+        xlab("Date") +
+        ylab("Overall Rating") +
+        geom_point() +
+        geom_text_repel(aes(label = paste(finalTeamDF$team_name, "/", coachNames$name)))
+    suppressMessages(ggsave(paste0(team_plots_dir, finalTeamDF$team_name[1], ".png"), width=30, height=4, plot))
+
+    coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
+    colnames(coachNames) <- c("name")
+}
+```
+
+## Random Forest
+```{R}
+newTeams <- data.frame(matrix(ncol = 54, nrow = 0))
+colnames(newTeams) <- names(teams)
+for (team in unique(teams$team_id)){
+    team_df <- subset(teams, team_id == team)
+
+    if (length(unique(team_df$coach_id)) > 1) {
+        newTeams <- rbind(newTeams, team_df)
+    }
+}
+
+# Replaces NA values in coach_id column with median of coach_id
+val <- median(na.omit(newTeams$coach_id))
+newTeams$coach_id[is.na(newTeams$coach_id)] <- val
+
+# WARNING: will remove coach_id column as well if you dont run above line (has some NA values in it)
+newTeams <- newTeams[, colSums(is.na(newTeams)) == 0] # Remove all columns with any NA values in them
+
+
+set.seed(1)
+split <- 0.7
+sample <- sample(nrow(newTeams), split * nrow(newTeams))
+train_data <- newTeams[sample, ]
+test_data <- newTeams[-sample, ]
+rf <- randomForest(as.factor(overall > mean(overall)) ~ .,
+    data = train_data, ntree = 500, mtry = 7,
+    importance = TRUE, na.action = na.exclude)
+# rf$confusion
+
+predictions <- predict(rf, test_data)
+confusionMatrix(predictions, as.factor(test_data$overall > mean(test_data$overall)))
+# importance(rf)
+varImpPlot(rf)
+
+```
+## Get AUC
+```{R}
+pred2 <- predict(rf, test_data, type = "prob")
+# pred2[is.na(pred2)] <- 0
+pred3 <- prediction(pred2[, 2], as.factor(test_data$overall > mean(test_data$overall)))
+auc <- performance(pred3, "auc")@y.values
+auc # Got a good AUC! 0.99
+```
+
+### Testing midfield strength
+```{R}
+glmMidfield <- glm(as.factor(overall > mean(overall)) ~ midfield,
+    data = train_data, family = binomial())
+
+midfieldPred <- predict(glmMidfield, test_data)
+midfieldPred <- ifelse(midfieldPred >= 0, TRUE, FALSE)
+
+confusionMatrix(as.factor(midfieldPred), as.factor(test_data$overall > mean(test_data$overall))) # Acc: 0.923
+```
+
+### Testing attack strength
+```{R}
+glmAttack <- glm(as.factor(overall > mean(overall)) ~ attack,
+    data = train_data, family = binomial())
+
+attackPred <- predict(glmAttack, test_data)
+attackPred <- ifelse(attackPred >= 0, TRUE, FALSE)
+
+confusionMatrix(as.factor(attackPred), as.factor(test_data$overall > mean(test_data$overall))) # Acc: 0.893
+```
+
+### Testing defence strength
+```{R}
+glmDefence <- glm(as.factor(overall > mean(overall)) ~ defence,
+    data = train_data, family = binomial()
+)
+
+defencePred <- predict(glmDefence, test_data)
+defencePred <- ifelse(defencePred >= 0, TRUE, FALSE)
+
+confusionMatrix(as.factor(defencePred), as.factor(test_data$overall > mean(test_data$overall))) # Acc: 0.9243
+```
+
+### Testing coach_id
+```{R}
+glmCoach <- glm(as.factor(overall > mean(overall)) ~ coach_id + fifa_update_date,
+    data = train_data, family = binomial()
+)
+
+coachPred <- predict(glmCoach, test_data)
+coachPred <- ifelse(coachPred >= 0, TRUE, FALSE)
+
+confusionMatrix(as.factor(coachPred), as.factor(test_data$overall > mean(test_data$overall))) # Acc: 0.6071 with fifa_update, 0.6348 without fifa_update
+```
