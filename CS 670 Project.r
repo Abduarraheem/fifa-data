@@ -158,8 +158,8 @@ varImpPlot(rf)
 pred2 <- predict(rf, test_data, type = "prob")
 # pred2[is.na(pred2)] <- 0
 pred3 <- prediction(pred2[, 2], as.factor(test_data$overall > mean(test_data$overall)))
-auc <- performance(pred3, "auc")@y.values
-auc # Got a good AUC! 0.99
+auc <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC: ", auc) # Got a good AUC! 0.99
 
 #********************************************************************
 
@@ -214,45 +214,102 @@ dir.create(defGK_plots_dir)
 unlink(paste0(defGK_plots_dir, "*"))
 
 modifiedPlayers <- subset(players, club_position %in%
-c("CB", "LB", "RB", "RWB", "LWB", "SW") )
+c("CB", "LB", "RB", "RWB", "LWB", "SW"))
 
 modifiedPlayers <- subset(modifiedPlayers, short_name %in%
-unique(modifiedPlayers$short_name)[1:100])
+unique(modifiedPlayers$short_name)[1:3000])
 
-lastPlayers <- data.frame(matrix(ncol = 5, nrow = 0))
+modifiedPlayers['gkName'] <- NA
+modifiedPlayers["gkOverall"] <- NA
 
-colnames(lastPlayers) <- c(
-    "defender",
-    "goalkeeper",
-    "clubName",
-    "gkOverall",
-    "gkOverallLater"
-)
+# lastPlayers <- data.frame(matrix(ncol = 5, nrow = 0))
+
+# colnames(lastPlayers) <- c(
+#     "defender",
+#     "goalkeeper",
+#     "clubName",
+#     "gkOverall",
+#     "gkOverallLater"
+# )
 
 for (row in seq_len(nrow(modifiedPlayers))) {
     date <- as.Date(modifiedPlayers[row, "club_joined_date"])
     formattedFifaUpdate <- as.Date(modifiedPlayers$fifa_update_date)
     index <- which.min(abs(formattedFifaUpdate - date))
 
-    filterData <- subset(players, 
+    filterData <- subset(players,
         as.Date(fifa_update_date) >= as.Date(modifiedPlayers$fifa_update_date[index]) &
         club_team_id == modifiedPlayers[row, "club_team_id"] &
         club_position == "GK")
 
     if (nrow(filterData) != 0) {
-        plot <- ggplot(filterData, aes(filterData$fifa_update_date, filterData$overall)) +
-        ggtitle("GK Overall as Cause of Defender") +
-        xlab("Date") +
-        ylab("Overall Rating") +
-        geom_point() +
-        geom_text_repel(aes(label = paste(filterData$short_name, "/", modifiedPlayers[row,]$short_name)))
-        suppressMessages(ggsave(paste0(defGK_plots_dir, modifiedPlayers[row,]$short_name, ".png"), width=20, height=4, plot))    
+        modifiedPlayers[row, ]$gkName <- filterData$short_name[1]
+        modifiedPlayers[row, ]$gkOverall <- filterData$overall[1]
 
-        lastPlayers[nrow(lastPlayers) + 1, ] <- c(modifiedPlayers$short_name[row],
-        filterData$short_name[1], filterData$club_name[1], filterData$overall[1], filterData$overall[1])
+        # plot <- ggplot(filterData, aes(filterData$fifa_update_date, filterData$overall)) +
+        # ggtitle("GK Overall as Cause of Defender") +
+        # xlab("Date") +
+        # ylab("Overall Rating") +
+        # geom_point() +
+        # geom_text_repel(aes(label = paste(filterData$short_name, "/", modifiedPlayers[row,]$short_name)))
+        # suppressMessages(ggsave(paste0(defGK_plots_dir, modifiedPlayers[row,]$short_name, ".png"), width=20, height=4, plot))    
+
+        # lastPlayers[nrow(lastPlayers) + 1, ] <- c(modifiedPlayers$short_name[row],
+        # filterData$short_name[1], filterData$club_name[1], filterData$overall[1], filterData$overall[1])
     }
-
 }
+
+nrow(modifiedPlayers)
+
+# ====================================================================
+
+# model <- glm(overall ~ coach_id + fifa_update_date + (coach_id * fifa_update_date), data = teams, family = gaussian())
+# results <- predict(model, type="response")
+# results
+
+# Replaces NA values in gkOverall column with median of gkOverall
+val <- median(na.omit(modifiedPlayers$gkOverall))
+modifiedPlayers$gkOverall[is.na(modifiedPlayers$gkOverall)] <- val
+
+modifiedPlayers$gkName[is.na(modifiedPlayers$gkName)] <- "None"
+
+# WARNING: will remove coach_id column as well if you dont run above line (has some NA values in it)
+newPlayers <- modifiedPlayers[, colSums(is.na(modifiedPlayers)) == 0] # Remove all columns with any NA values in them
+
+set.seed(1)
+split <- 0.7
+sample <- sample(nrow(newPlayers), split * nrow(newPlayers))
+trainDataPlayers <- newPlayers[sample, ]
+testDataPlayers <- newPlayers[-sample, ]
+rf <- randomForest(as.factor(gkOverall > mean(gkOverall)) ~ .,
+    data = trainDataPlayers, ntree = 500, mtry = 35,
+    importance = TRUE, na.action = na.exclude
+)
+
+predictions <- predict(rf, testDataPlayers)
+confusionMatrix(predictions, as.factor(testDataPlayers$gkOverall > mean(testDataPlayers$gkOverall)))
+# importance(rf)
+varImpPlot(rf)
+
+#********************************************************************
+
+for (row in seq_len(nrow(testDataPlayers))) {
+    testDataPlayers[row, ] <- gsub("[-.*$|\\+.*$]", "", testDataPlayers[row,])
+}
+
+trainDataPlayers[] <- lapply(trainDataPlayers, function(x) {gsub("[-|\\+].*", "", x)})
+testDataPlayers[] <- lapply(testDataPlayers, function(x) {gsub("[-|\\+].*", "", x)})
+
+# Testing defence strength
+glmStat <- glm(as.numeric(gkOverall) ~ rb + lb + cb + 
+rwb + lwb, data = trainDataPlayers, family = gaussian())
+
+length(unique(as.factor(trainDataPlayers$rb)))
+
+statPred <- predict(glmStat, testDataPlayers)
+statPred <- ifelse(statPred >= 0, TRUE, FALSE)
+
+confusionMatrix(as.factor(statPred), as.factor(testDataPlayers$gkOverall > mean(testDataPlayers$gkOverall))) # Acc: 0.9243
 
 #####################################################################
 
