@@ -141,22 +141,21 @@ split <- 0.7
 sample <- sample(nrow(newTeams), split * nrow(newTeams))
 train_data <- newTeams[sample, ]
 test_data <- newTeams[-sample, ]
-rf <- randomForest(as.factor(overall > mean(overall)) ~ .,
+rfTeams <- randomForest(as.factor(overall > mean(overall)) ~ .,
     data = train_data, ntree = 500, mtry = 7,
     importance = TRUE, na.action = na.exclude)
-# rf$confusion
 
-predictions <- predict(rf, test_data)
+
+predictions <- predict(rfTeams, test_data)
 confusionMatrix(predictions, as.factor(test_data$overall > mean(test_data$overall)))
-# importance(rf)
-varImpPlot(rf)
+
+varImpPlot(rfTeams)
 
 
-pred2 <- predict(rf, test_data, type = "prob")
-# pred2[is.na(pred2)] <- 0
+pred2 <- predict(rfTeams, test_data, type = "prob")
 pred3 <- prediction(pred2[, 2], as.factor(test_data$overall > mean(test_data$overall)))
 auc <- performance(pred3, "auc")@y.values[[1]]
-cat("AUC: ", auc) # Got a good AUC! 0.99
+cat("AUC: ", auc)
 
 #********************************************************************
 
@@ -249,7 +248,7 @@ for (row in seq_len(nrow(modifiedPlayers))) {
         # ylab("Overall Rating") +
         # geom_point() +
         # geom_text_repel(aes(label = paste(filterData$short_name, "/", modifiedPlayers[row,]$short_name)))
-        # suppressMessages(ggsave(paste0(defGK_plots_dir, modifiedPlayers[row,]$short_name, ".png"), width=20, height=4, plot))    
+        # suppressMessages(ggsave(paste0(defGK_plots_dir, modifiedPlayers[row,]$short_name, ".png"), width=10, height=4, plot))    
 
         # lastPlayers[nrow(lastPlayers) + 1, ] <- c(modifiedPlayers$short_name[row],
         # filterData$short_name[1], filterData$club_name[1], filterData$overall[1], filterData$overall[1])
@@ -270,43 +269,79 @@ modifiedPlayers$gkOverall[is.na(modifiedPlayers$gkOverall)] <- val
 
 modifiedPlayers$gkName[is.na(modifiedPlayers$gkName)] <- "None"
 
-# WARNING: will remove coach_id column as well if you dont run above line (has some NA values in it)
 newPlayers <- modifiedPlayers[, colSums(is.na(modifiedPlayers)) == 0] # Remove all columns with any NA values in them
+
+# Remove arithmetic signs from numeric columns
+newPlayers[] <- lapply(newPlayers, function(x) { 
+    gsub("[-|\\+].*", "", x)
+})
 
 set.seed(1)
 split <- 0.7
 sample <- sample(nrow(newPlayers), split * nrow(newPlayers))
 trainDataPlayers <- newPlayers[sample, ]
 testDataPlayers <- newPlayers[-sample, ]
-rf <- randomForest(as.factor(gkOverall > mean(gkOverall)) ~ .,
+rfPlayers <- randomForest(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ .,
     data = trainDataPlayers, ntree = 500, mtry = 35,
-    importance = TRUE, na.action = na.exclude
-)
+    importance = TRUE)
 
-predictions <- predict(rf, testDataPlayers)
-confusionMatrix(predictions, as.factor(testDataPlayers$gkOverall > mean(testDataPlayers$gkOverall)))
-# importance(rf)
-varImpPlot(rf)
+predictions <- predict(rfPlayers, testDataPlayers)
+confusionMatrix(predictions, as.factor(as.numeric(testDataPlayers$gkOverall)
+> mean(as.numeric(testDataPlayers$gkOverall))))
+
+print(varImpPlot(rfPlayers))
+
+pred2 <- predict(rfPlayers, testDataPlayers, type = "prob")
+pred3 <- prediction(pred2[, 2], as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
+auc <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC: ", auc)
+
+summary(rfPlayers)
 
 #********************************************************************
 
-for (row in seq_len(nrow(testDataPlayers))) {
-    testDataPlayers[row, ] <- gsub("[-.*$|\\+.*$]", "", testDataPlayers[row,])
-}
-
+newPlayers[] <- lapply(newPlayers, function(x) {
+    gsub("[-|\\+].*", "", x)
+})
 trainDataPlayers[] <- lapply(trainDataPlayers, function(x) {gsub("[-|\\+].*", "", x)})
 testDataPlayers[] <- lapply(testDataPlayers, function(x) {gsub("[-|\\+].*", "", x)})
 
-# Testing defence strength
-glmStat <- glm(as.numeric(gkOverall) ~ rb + lb + cb + 
-rwb + lwb, data = trainDataPlayers, family = gaussian())
+testDataPlayers$gkOverall <- as.numeric(testDataPlayers$gkOverall)
+testDataPlayers$rb <- as.numeric(testDataPlayers$rb)
+testDataPlayers$lb <- as.numeric(testDataPlayers$lb)
+testDataPlayers$cb <- as.numeric(testDataPlayers$cb)
+testDataPlayers$rwb <- as.numeric(testDataPlayers$rwb)
+testDataPlayers$lwb <- as.numeric(testDataPlayers$lwb)
+str(newPlayers)
 
-length(unique(as.factor(trainDataPlayers$rb)))
+unique(as.numeric(trainDataPlayers$lb))
+
+# Testing defence strength
+glmStat <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(rb) + as.numeric(cb) + as.numeric(rwb) + as.numeric(lwb) + as.numeric(lb), data = trainDataPlayers, family = binomial())
+summary(glmStat)
+names(trainDataPlayers)
+cor(sapply(trainDataPlayers[,96:101], function(x) {as.numeric(x)}))
+class(trainDataPlayers)
+
+# str(as.factor(modifiedPlayers$cb))
+
+# length(unique(as.factor(trainDataPlayers$cb)))
 
 statPred <- predict(glmStat, testDataPlayers)
 statPred <- ifelse(statPred >= 0, TRUE, FALSE)
+confusionMatrix(as.factor(statPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
 
-confusionMatrix(as.factor(statPred), as.factor(testDataPlayers$gkOverall > mean(testDataPlayers$gkOverall))) # Acc: 0.9243
+pred2 <- predict(glmStat, testDataPlayers)
+pred3 <- prediction(pred2, as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
+aucDefense1 <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC:", aucDefense1)
+
+perf <- performance(pred3, "tpr", "fpr")
+plot(perf,
+    lwd = 2,
+    main = "Defence Player ROC"
+)
+abline(a = 0, b = 1)
 
 #####################################################################
 

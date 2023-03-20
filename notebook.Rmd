@@ -87,10 +87,50 @@ answer our thrid and fourth questions.
 
 The same treatment of omitting NA columns was done to the players dataset, leaving 105 columns as shown below:
 ```{R}
+modifiedPlayers <- subset(players, club_position %in%
+    c("CB", "LB", "RB", "RWB", "LWB", "SW"))
 
+modifiedPlayers <- subset(modifiedPlayers, short_name %in%
+    unique(modifiedPlayers$short_name)[1:3000])
+
+gkPlayers <- subset(players, club_position == "GK")
+
+modifiedPlayers["gkName"] <- NA
+modifiedPlayers["gkOverall"] <- NA
+
+
+for (row in seq_len(nrow(modifiedPlayers))) {
+    date <- as.Date(modifiedPlayers[row, "club_joined_date"])
+    formattedFifaUpdate <- as.Date(modifiedPlayers$fifa_update_date)
+    index <- which.min(abs(formattedFifaUpdate - date))
+
+    filterData <- subset(
+        gkPlayers,
+        as.Date(fifa_update_date) >= as.Date(modifiedPlayers$fifa_update_date[index]) &
+            club_team_id == modifiedPlayers[row, "club_team_id"]
+    )
+
+    if (nrow(filterData) != 0) {
+        modifiedPlayers[row, ]$gkName <- filterData$short_name[1]
+        modifiedPlayers[row, ]$gkOverall <- filterData$overall[1]
+    }
+}
+
+# Replaces NA values in gkOverall column with median of gkOverall
+val <- median(na.omit(modifiedPlayers$gkOverall))
+modifiedPlayers$gkOverall[is.na(modifiedPlayers$gkOverall)] <- val
+
+modifiedPlayers$gkName[is.na(modifiedPlayers$gkName)] <- "None"
+
+newPlayers <- modifiedPlayers[, colSums(is.na(modifiedPlayers)) == 0] # Remove all columns with any NA values in them
+
+# Remove arithmetic signs from numeric columns
+newPlayers[] <- lapply(newPlayers, function(x) {
+    gsub("[-|\\+].*", "", x)
+})
 ```
 
-``` {R, echo = FALSE, eval = FALSE}
+``` {R, echo = FALSE}
 knitr::kable(names(newPlayers), format = "markdown")
 ```
 
@@ -101,6 +141,7 @@ knitr::kable(names(newPlayers), format = "markdown")
 4. If not, which predictors do?
 
 # Visualizations
+## Coaches and Teams
 Let's first explore the current overall of the teams in the dataset, where overall combines their attack, midfield, 
 and defence stats into one.
 
@@ -116,63 +157,113 @@ st(teams[, c("overall", "attack", "midfield", "defence")],
 ```
 
 To see how the teams' overall changes over the tenure of their different coaches, we plot the teams' overalls throughout. 
-Here we see an example of Villarreal team:
+Here we see an example of Villarreal and Aston Villa teams:
 
 ```{R, echo = FALSE}
 coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
 colnames(coachNames) <- c("name")
 
-team_df <- subset(teams, team_name == "Villarreal")
+for (team in list("Villarreal", "Aston Villa")) {
+    team_df <- subset(teams, team_name == team)
 
-if (length(unique(team_df$coach_id)) <= 1) {
-    next
+    if (length(unique(team_df$coach_id)) <= 1) {
+        next
+    }
+
+    finalTeamDF <- data.frame(matrix(ncol = 54, nrow = 0))
+    colnames(finalTeamDF) <- names(team_df)
+
+    for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
+        sname <- c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+
+        if (identical(sname, character(0))) {
+            next
+        } else if (nrow(coachNames) == 0) {
+            finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+
+            coachNames[nrow(coachNames) + 1, ] <-
+                c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        } else if (i == nrow(team_df)) {
+            finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+
+            coachNames[nrow(coachNames) + 1, ] <-
+                c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        } else if (tail(coachNames, 1)[1, 1] == sname & nrow(coachNames) > 0) {
+            next
+        } else {
+            finalTeamDF <- rbind(finalTeamDF, team_df[i - 1, ])
+            coachNames[nrow(coachNames) + 1, ] <-
+                c(coaches[which(team_df[i - 1, ]$coach_id == coaches$coach_id), ]$short_name)
+
+            finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+            coachNames[nrow(coachNames) + 1, ] <-
+                c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+        }
+    }
+
+    plot <- ggplot(finalTeamDF, aes(finalTeamDF$fifa_update_date, finalTeamDF$overall)) +
+        ggtitle("Coach and Team Performance Overall") +
+        xlab("Date") +
+        ylab("Overall Rating") +
+        geom_point() +
+        geom_text_repel(aes(label = paste(finalTeamDF$team_name, "/", coachNames$name)))
+
+    coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
+    colnames(coachNames) <- c("name")
+
+    print(plot)
 }
+```
 
-finalTeamDF <- data.frame(matrix(ncol = 54, nrow = 0))
-colnames(finalTeamDF) <- names(team_df)
+## Defence Players and Goalkeepers
+Let's explore the stats of defence players and goalkeeper overalls in the subset we chose:
+```{R}
+st(newPlayers[, c("gkOverall", "overall")],
+    labels = c("GK Overall", "DF Player Overall"),
+    title = "Summary of Defence and Goalkeeper Player Statistics",
+    col.align = "right",
+    out = "return"
+) %>%
+    kbl(caption = "Summary of Defence and Goalkeeper Player Statistics") %>%
+    kable_styling()
+```
 
-for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
-    sname <- c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+We can see some examples of how a goalkeeper's overall changes over time after a defence player joins a team:
+```{R, echo = FALSE}
 
-    if (identical(sname, character(0))) {
-        next
-    } else if (nrow(coachNames) == 0) {
-        finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+modifiedPlayers["gkName"] <- NA
+modifiedPlayers["gkOverall"] <- NA
 
-        coachNames[nrow(coachNames) + 1, ] <-
-            c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
-    } else if (i == nrow(team_df)) {
-        finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
 
-        coachNames[nrow(coachNames) + 1, ] <-
-            c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
-    } else if (tail(coachNames, 1)[1, 1] == sname & nrow(coachNames) > 0) {
-        next
-    } else {
-        finalTeamDF <- rbind(finalTeamDF, team_df[i - 1, ])
-        coachNames[nrow(coachNames) + 1, ] <-
-            c(coaches[which(team_df[i - 1, ]$coach_id == coaches$coach_id), ]$short_name)
+for (row in list(1, 104)) {
+    date <- as.Date(modifiedPlayers[row, "club_joined_date"])
+    formattedFifaUpdate <- as.Date(modifiedPlayers$fifa_update_date)
+    index <- which.min(abs(formattedFifaUpdate - date))
 
-        finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
-        coachNames[nrow(coachNames) + 1, ] <-
-            c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+    filterData <- subset(
+        gkPlayers,
+        as.Date(fifa_update_date) >= as.Date(modifiedPlayers$fifa_update_date[index]) &
+            club_team_id == modifiedPlayers[row, "club_team_id"]
+    )
+
+    if (nrow(filterData) != 0) {
+        modifiedPlayers[row, ]$gkName <- filterData$short_name[1]
+        modifiedPlayers[row, ]$gkOverall <- filterData$overall[1]
+
+        plot <- ggplot(filterData, aes(filterData$fifa_update_date, filterData$overall)) +
+            ggtitle("GK Overall as Cause of Defender") +
+            xlab("Date") +
+            ylab("Overall Rating") +
+            geom_point() +
+            geom_text_repel(aes(label = paste(filterData$short_name, "/", modifiedPlayers[row, ]$short_name)))
+
+        print(plot)
     }
 }
-
-plot <- ggplot(finalTeamDF, aes(finalTeamDF$fifa_update_date, finalTeamDF$overall)) +
-    ggtitle("Coach and Team Performance Overall") +
-    xlab("Date") +
-    ylab("Overall Rating") +
-    geom_point() +
-    geom_text_repel(aes(label = paste(finalTeamDF$team_name, "/", coachNames$name)))
-
-coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
-colnames(coachNames) <- c("name")
-
-print(plot)
 ```
 
 # Models
+## Coaches and Teams
 To explore the impact of predictors on the overall of a team, we will first use a random forest. 
 It will run on all predictors, and act as a classifier to see whether the overall of a team is 
 higher than the mean of all teams' overalls. The random forest will detail the "importance" of the 
@@ -182,20 +273,20 @@ predictors for us, telling us which has the biggest impact on the response.
 set.seed(1)
 split <- 0.7
 sample <- sample(nrow(newTeams), split * nrow(newTeams))
-train_data <- newTeams[sample, ]
-test_data <- newTeams[-sample, ]
-rf <- randomForest(as.factor(overall > mean(overall)) ~ .,
-    data = train_data, ntree = 500, mtry = 7,
+trainDataTeams <- newTeams[sample, ]
+testDataTeams <- newTeams[-sample, ]
+rfTeams <- randomForest(as.factor(overall > mean(overall)) ~ .,
+    data = trainDataTeams, ntree = 500, mtry = 7,
     importance = TRUE, na.action = na.exclude)
 
-predictions <- predict(rf, test_data)
-cmRF <- confusionMatrix(predictions, as.factor(test_data$overall > mean(test_data$overall)))
+predictions <- predict(rfTeams, testDataTeams)
+cmRF <- confusionMatrix(predictions, as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 print(cmRF)
 
-varImpPlot(rf)
+varImpPlot(rfTeams)
 
-pred2 <- predict(rf, test_data, type = "prob")
-pred3 <- prediction(pred2[, 2], as.factor(test_data$overall > mean(test_data$overall)))
+pred2 <- predict(rfTeams, testDataTeams, type = "prob")
+pred3 <- prediction(pred2[, 2], as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 auc <- performance(pred3, "auc")@y.values[[1]]
 cat("AUC: ", auc)
 
@@ -206,18 +297,22 @@ be less important than we thought. If we explore each predictor on its own in a 
 we might discover if the random forest was correct.
 
 ### Testing midfield strength
+First, we run LR on midfield alone as predictor:
 ```{R}
 glmMidfield <- glm(as.factor(overall > mean(overall)) ~ midfield,
-    data = train_data, family = binomial())
+    data = trainDataTeams, family = binomial())
 
-midfieldPred <- predict(glmMidfield, test_data)
+midfieldPred <- predict(glmMidfield, testDataTeams)
 midfieldPred <- ifelse(midfieldPred >= 0, TRUE, FALSE)
 
-cmMid <- confusionMatrix(as.factor(midfieldPred), as.factor(test_data$overall > mean(test_data$overall)))
+cmMid <- confusionMatrix(as.factor(midfieldPred), as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 print(cmMid)
+```
+Pretty high accuracy for the predictor alone.
 
-pred2 <- predict(glmMidfield, test_data)
-pred3 <- prediction(pred2, as.factor(test_data$overall > mean(test_data$overall)))
+```{R}
+pred2 <- predict(glmMidfield, testDataTeams)
+pred3 <- prediction(pred2, as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 aucMid <- performance(pred3, "auc")@y.values[[1]]
 cat("AUC:", aucMid)
 
@@ -228,20 +323,26 @@ plot(perf,
 )
 abline(a = 0, b = 1)
 ```
+And a good ROC with a high AUC value.
+
 
 ### Testing attack strength
+Now we check for attack alone:
 ```{R}
 glmAttack <- glm(as.factor(overall > mean(overall)) ~ attack,
-    data = train_data, family = binomial())
+    data = trainDataTeams, family = binomial())
 
-attackPred <- predict(glmAttack, test_data)
+attackPred <- predict(glmAttack, testDataTeams)
 attackPred <- ifelse(attackPred >= 0, TRUE, FALSE)
 
-cmAtt <- confusionMatrix(as.factor(attackPred), as.factor(test_data$overall > mean(test_data$overall)))
+cmAtt <- confusionMatrix(as.factor(attackPred), as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 print(cmAtt)
+```
+We can see a dip in accuracy here, a 0.88 vs the high 0.92 before.
 
-pred2 <- predict(glmAttack, test_data)
-pred3 <- prediction(pred2, as.factor(test_data$overall > mean(test_data$overall)))
+```{R}
+pred2 <- predict(glmAttack, testDataTeams)
+pred3 <- prediction(pred2, as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 aucAtt <- performance(pred3, "auc")@y.values[[1]]
 cat("AUC:", aucAtt)
 
@@ -252,21 +353,28 @@ plot(perf,
 )
 abline(a = 0, b = 1)
 ```
+But the ROC and AUC match midfield's model.
 
 ### Testing defence strength
+Next we move to defence:
+
 ```{R}
 glmDefence <- glm(as.factor(overall > mean(overall)) ~ defence,
-    data = train_data, family = binomial()
+    data = trainDataTeams, family = binomial()
 )
 
-defencePred <- predict(glmDefence, test_data)
+defencePred <- predict(glmDefence, testDataTeams)
 defencePred <- ifelse(defencePred >= 0, TRUE, FALSE)
 
-cmDef <- confusionMatrix(as.factor(defencePred), as.factor(test_data$overall > mean(test_data$overall)))
+cmDef <- confusionMatrix(as.factor(defencePred), as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 print(cmDef)
+```
+We see very similar results to midfield's model.
 
-pred2 <- predict(glmDefence, test_data)
-pred3 <- prediction(pred2, as.factor(test_data$overall > mean(test_data$overall)))
+
+```{R}
+pred2 <- predict(glmDefence, testDataTeams)
+pred3 <- prediction(pred2, as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 aucDef <- performance(pred3, "auc")@y.values[[1]]
 cat("AUC:", aucDef)
 
@@ -277,23 +385,27 @@ plot(perf,
 )
 abline(a = 0, b = 1)
 ```
+And a similar ROC and AUC as well.
 
 ### Testing coach_id
 Because we want to test the coaches' impact over time, we add fifa_update_date, which describes the date
 a row was scraped from the games.
 ```{R}
 glmCoach <- glm(as.factor(overall > mean(overall)) ~ coach_id + fifa_update_date,
-    data = train_data, family = binomial()
+    data = trainDataTeams, family = binomial()
 )
 
-coachPred <- predict(glmCoach, test_data)
+coachPred <- predict(glmCoach, testDataTeams)
 coachPred <- ifelse(coachPred >= 0, TRUE, FALSE)
 
-cmCoach <- confusionMatrix(as.factor(coachPred), as.factor(test_data$overall > mean(test_data$overall)))
+cmCoach <- confusionMatrix(as.factor(coachPred), as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 print(cmCoach)
+```
+The huge dip in accuracy is apparent here, a 0.62 vs the 0.8's and 0.9's before.
 
-pred2 <- predict(glmCoach, test_data)
-pred3 <- prediction(pred2, as.factor(test_data$overall > mean(test_data$overall)))
+```{R}
+pred2 <- predict(glmCoach, testDataTeams)
+pred3 <- prediction(pred2, as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 aucCoach <- performance(pred3, "auc")@y.values[[1]]
 cat("AUC:", aucCoach)
 
@@ -304,13 +416,87 @@ plot(perf,
 )
 abline(a = 0, b = 1)
 ```
+The ROC and AUC don't look good as well. The model seems unable to differentiate between true and false positives/negatives.
+
+## Defence Players and Goalkeepers
+To determine the best stats of a defence player related to determining their goalkeeper's overall strength, we will run a 
+random forest again with the modified newPlayers dataset and observe the importance of predictors:
+```{R}
+set.seed(1)
+split <- 0.7
+sample <- sample(nrow(newPlayers), split * nrow(newPlayers))
+trainDataPlayers <- newPlayers[sample, ]
+testDataPlayers <- newPlayers[-sample, ]
+rfPlayers <- randomForest(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ .,
+    data = trainDataPlayers, ntree = 500, mtry = 35,
+    importance = TRUE
+)
+
+predictions <- predict(rfPlayers, testDataPlayers)
+confusionMatrix(predictions, as.factor(as.numeric(testDataPlayers$gkOverall)
+> mean(as.numeric(testDataPlayers$gkOverall))))
+
+varImpPlot(rfPlayers)
+
+pred2 <- predict(rfPlayers, testDataPlayers, type = "prob")
+pred3 <- prediction(pred2[, 2], as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
+auc <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC: ", auc)
+```
+
+```{R}
+glmStat <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(rb) + as.numeric(cb) + 
+as.numeric(rwb) + as.numeric(lwb) + as.numeric(lb) + as.numeric(lcb) + as.numeric(rcb), data = trainDataPlayers, 
+family = binomial())
+
+summary(glmStat)
+```
+We can see that there is some correlation happening in the model, as evidenced by the "NA" in some of the predictors. Let's
+see which predictors they correlate to.
+
+```{R}
+cor(sapply(trainDataPlayers[, 96:101], function(x) {
+    as.numeric(x)
+}))
+```
+So "lb" and "rb" are correlated, as are "lwb" and "rwb", and "cb" and "lcb" and "rcb". We can reduce the number of predictors
+by removing all but one of every correlating group of predictors
+
+```{R}
+glmStat <- glm(
+    as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(rb) + as.numeric(cb) +
+        as.numeric(rwb),
+    data = trainDataPlayers,
+    family = binomial()
+)
+
+statPred <- predict(glmStat, testDataPlayers)
+statPred <- ifelse(statPred >= 0, TRUE, FALSE)
+confusionMatrix(as.factor(statPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
+```
+
+```{R}
+pred2 <- predict(glmStat, testDataPlayers)
+pred3 <- prediction(pred2, as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
+aucDefence1 <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC:", aucDefence1)
+
+perf <- performance(pred3, "tpr", "fpr")
+plot(perf,
+    lwd = 2,
+    main = "Defence Player Stats ROC"
+)
+abline(a = 0, b = 1)
+```
 
 # Results and Analysis
-## Summary of Test Data Model Comparision
+## Coaches and Teams
+### Summary of Test Data Model Comparision
+
 ```{R, echo = FALSE}
 
 teamResults <- data.frame(
-   Model = c('Random Forest (All Predictors)', 'LR Midfield', 'LR Attack', 'LR Defence', 'LR Coach'),
+   Model = c('Random Forest (All Predictors)', 'LR Midfield', 'LR Attack', 'LR Defence', 'LR Coach (Over Time)'),
    Accuracy = c(cmRF$overall["Accuracy"], cmMid$overall["Accuracy"], cmAtt$overall["Accuracy"], cmDef$overall["Accuracy"], 
    cmCoach$overall['Accuracy']),
    AUC = c(auc, aucMid, aucAtt, aucDef, aucCoach),
@@ -325,6 +511,21 @@ kbl() %>%
 kable_styling()
 ```
 
+As we can see, the accuracies for midfield, attack, and defence classifiers were much higher than the coach over-time
+classifier, in the range of 80-90%. The result may be due to the distribution of quantitative values in the former three as 
+opposed to the two categorical predictors coach_id and fifa_update_date.
+
+But it brings to mind a question: as a coach, they strategize plans and formations for the team. Wouldn't the coach have
+a hand in a team's defence, midfield, and attack strength? It's hard to answer without more data to follow through with. With
+the data we have on hand, we can conclde temporarily for our first two questions: **Defence, Midfield, and Attack can help predict
+a team's overall performance better than who the coach is. The three stats can be realted to how the coach delegates his team.**
+
+## Defence Players and Goalkeepers
+
+
+
+
+
 # Impact
 The data could be used in several ways:
 
@@ -338,149 +539,8 @@ A team manager would probably buy and sell their players based on whether they w
 not. They could compare the stats of a goalkeeper when a defender joined, and their stats when the two players 
 separate and determine a defence player's worth based on that.
 
-## Create and clear directories 
-```{R}
-# team_plots_dir <- "team_plots/"
-# dir.create(team_plots_dir)
-# unlink(paste0(team_plots_dir, "*"))
-# ```
-
-# ## Plots for teams only looking at February updates.
-# ```{R}
-# modifiedTeams <- subset(teams, team_name %in% unique(teams$team_name)[1:100])
-
-# months <- c("-02-")
-
-# lastTeams <- modifiedTeams[grepl(paste(months, collapse = "|"), modifiedTeams$fifa_update_date), ]
-
-# coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
-# colnames(coachNames) <- c("name")
-
-# for (team in unique(lastTeams$team_name)){
-#     team_df <- subset(lastTeams, team_name == team) # need to filter out countries.
-
-#     for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
-#         coachNames[nrow(coachNames) + 1, ] <- 
-#         c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
-#     }
-
-#     plot <- ggplot(team_df, aes(team_df$fifa_update_date, team_df$overall)) +
-#         ggtitle("Coach and Team Performance Overall") +
-#         xlab("Date") +
-#         ylab("Overall Rating") +
-#         geom_point() +
-#         geom_text_repel(aes(label = paste(team_df$team_name, "/", coachNames$name)))
-#     suppressMessages(ggsave(paste0(team_plots_dir, team, ".png"), width=20, height=4, plot))
-
-#     coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
-#     colnames(coachNames) <- c("name")
-# }
-# ```
-
-# ## Prints out plots for teams with more than one coach in dataset
-# ```{R}
-# unlink(paste0(team_plots_dir, "*"))
-
-# coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
-# colnames(coachNames) <- c("name")
-
-# for (team in unique(teams$team_id)){
-#     team_df <- subset(teams, team_id == team) # need to filter out countries.
-
-#     if (length(unique(team_df$coach_id)) <= 1) {
-#         next
-#     }
-
-#     finalTeamDF <- data.frame(matrix(ncol = 54, nrow = 0))
-#     colnames(finalTeamDF) <- names(team_df)
-
-#     for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
-#         sname <- c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
-        
-#         if (identical(sname, character(0))) {
-#             # print(sname)
-#             # print(team_df[i, ]$coach_id)
-#             next
-#         }
-#         else if (nrow(coachNames) == 0) {
-#             finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
-
-#             coachNames[nrow(coachNames) + 1, ] <- 
-#                 c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
-#         }
-#         else if (i == nrow(team_df)) {
-#             finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
-
-#             coachNames[nrow(coachNames) + 1, ] <- 
-#                 c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
-#         }
-#         else if (tail(coachNames, 1)[1, 1] == sname & nrow(coachNames) > 0) {
-#             # print(sname)
-#             next
-#         }
-#         else {
-#             finalTeamDF <- rbind(finalTeamDF, team_df[i - 1, ])
-#             coachNames[nrow(coachNames) + 1, ] <- 
-#                 c(coaches[which(team_df[i - 1, ]$coach_id == coaches$coach_id), ]$short_name)
-
-#             finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
-#             coachNames[nrow(coachNames) + 1, ] <- 
-#                 c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
-#         }
-#     }
-#     #print(nrow(team_df))
-#     #print(nrow(finalTeamDF))
-#     plot <- ggplot(finalTeamDF, aes(finalTeamDF$fifa_update_date, finalTeamDF$overall)) +
-#         ggtitle("Coach and Team Performance Overall") +
-#         xlab("Date") +
-#         ylab("Overall Rating") +
-#         geom_point() +
-#         geom_text_repel(aes(label = paste(finalTeamDF$team_name, "/", coachNames$name)))
-#     suppressMessages(ggsave(paste0(team_plots_dir, finalTeamDF$team_name[1], ".png"), width=30, height=4, plot))
-
-#     coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
-#     colnames(coachNames) <- c("name")
-# }
-# ```
-
-# ## Random Forest
-# ```{R}
-# newTeams <- data.frame(matrix(ncol = 54, nrow = 0))
-# colnames(newTeams) <- names(teams)
-# for (team in unique(teams$team_id)){
-#     team_df <- subset(teams, team_id == team)
-
-#     if (length(unique(team_df$coach_id)) > 1) {
-#         newTeams <- rbind(newTeams, team_df)
-#     }
-# }
-
-# # Replaces NA values in coach_id column with median of coach_id
-# val <- median(na.omit(newTeams$coach_id))
-# newTeams$coach_id[is.na(newTeams$coach_id)] <- val
-
-# # WARNING: will remove coach_id column as well if you dont run above line (has some NA values in it)
-# newTeams <- newTeams[, colSums(is.na(newTeams)) == 0] # Remove all columns with any NA values in them
-
-
-# set.seed(1)
-# split <- 0.7
-# sample <- sample(nrow(newTeams), split * nrow(newTeams))
-# train_data <- newTeams[sample, ]
-# test_data <- newTeams[-sample, ]
-# rf <- randomForest(as.factor(overall > mean(overall)) ~ .,
-#     data = train_data, ntree = 500, mtry = 7,
-#     importance = TRUE, na.action = na.exclude)
-# # rf$confusion
-
-# predictions <- predict(rf, test_data)
-# confusionMatrix(predictions, as.factor(test_data$overall > mean(test_data$overall)))
-# # importance(rf)
-# varImpPlot(rf)
-
-# ```
-# ## Get AUC
-# ```{R}
-# ```
-
-```
+3. Betting on matches and players.
+The model's could help predict slightly the performance of a goalkeeper or a team with a certain coach. We say
+slightly because the classifiers check if the overall is higher than the mean overall. That might not help betters
+a lot, but it still could be considered unethical to publish without at least a disclaimer or use privately with
+football managers.
