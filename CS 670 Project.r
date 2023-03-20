@@ -71,8 +71,6 @@ for (team in unique(teams$team_id)){
         sname <- c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
         
         if (identical(sname, character(0))) {
-            print(sname)
-            print(team_df[i, ]$coach_id)
             next
         }
         else if (nrow(coachNames) == 0) {
@@ -88,7 +86,6 @@ for (team in unique(teams$team_id)){
                 c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
         }
         else if (tail(coachNames, 1)[1, 1] == sname & nrow(coachNames) > 0) {
-            print(sname)
             next
         }
         else {
@@ -101,19 +98,19 @@ for (team in unique(teams$team_id)){
                 c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
         }
     }
-    #print(nrow(team_df))
-    #print(nrow(finalTeamDF))
+
     plot <- ggplot(finalTeamDF, aes(finalTeamDF$fifa_update_date, finalTeamDF$overall)) +
         ggtitle("Coach and Team Performance Overall") +
         xlab("Date") +
         ylab("Overall Rating") +
         geom_point() +
         geom_text_repel(aes(label = paste(finalTeamDF$team_name, "/", coachNames$name)))
-    suppressMessages(ggsave(paste0(team_plots_dir, finalTeamDF$team_name[1], ".png"), width=30, height=4, plot))
+    suppressMessages(ggsave(paste0(team_plots_dir, finalTeamDF$team_name[1], ".png"), width=10, height=4, plot))
 
     coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
     colnames(coachNames) <- c("name")
 }
+
 #====================================================================
 
 # model <- glm(overall ~ coach_id + fifa_update_date + (coach_id * fifa_update_date), data = teams, family = gaussian())

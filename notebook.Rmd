@@ -115,6 +115,63 @@ st(teams[, c("overall", "attack", "midfield", "defence")],
     kable_styling()
 ```
 
+To see how the teams' overall changes over the tenure of their different coaches, we plot the teams' overalls throughout. 
+Here we see an example of Villarreal team:
+
+```{R, echo = FALSE}
+coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
+colnames(coachNames) <- c("name")
+
+team_df <- subset(teams, team_name == "Villarreal")
+
+if (length(unique(team_df$coach_id)) <= 1) {
+    next
+}
+
+finalTeamDF <- data.frame(matrix(ncol = 54, nrow = 0))
+colnames(finalTeamDF) <- names(team_df)
+
+for (i in seq_len(nrow(team_df))) { # Now makes a list of all names first, then uses it in plot
+    sname <- c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+
+    if (identical(sname, character(0))) {
+        next
+    } else if (nrow(coachNames) == 0) {
+        finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+
+        coachNames[nrow(coachNames) + 1, ] <-
+            c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+    } else if (i == nrow(team_df)) {
+        finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+
+        coachNames[nrow(coachNames) + 1, ] <-
+            c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+    } else if (tail(coachNames, 1)[1, 1] == sname & nrow(coachNames) > 0) {
+        next
+    } else {
+        finalTeamDF <- rbind(finalTeamDF, team_df[i - 1, ])
+        coachNames[nrow(coachNames) + 1, ] <-
+            c(coaches[which(team_df[i - 1, ]$coach_id == coaches$coach_id), ]$short_name)
+
+        finalTeamDF <- rbind(finalTeamDF, team_df[i, ])
+        coachNames[nrow(coachNames) + 1, ] <-
+            c(coaches[which(team_df[i, ]$coach_id == coaches$coach_id), ]$short_name)
+    }
+}
+
+plot <- ggplot(finalTeamDF, aes(finalTeamDF$fifa_update_date, finalTeamDF$overall)) +
+    ggtitle("Coach and Team Performance Overall") +
+    xlab("Date") +
+    ylab("Overall Rating") +
+    geom_point() +
+    geom_text_repel(aes(label = paste(finalTeamDF$team_name, "/", coachNames$name)))
+
+coachNames <- data.frame(matrix(ncol = 1, nrow = 0)) # Resets the coaches dataframe
+colnames(coachNames) <- c("name")
+
+print(plot)
+```
+
 # Models
 To explore the impact of predictors on the overall of a team, we will first use a random forest. 
 It will run on all predictors, and act as a classifier to see whether the overall of a team is 
@@ -136,6 +193,12 @@ cmRF <- confusionMatrix(predictions, as.factor(test_data$overall > mean(test_dat
 print(cmRF)
 
 varImpPlot(rf)
+
+pred2 <- predict(rf, test_data, type = "prob")
+pred3 <- prediction(pred2[, 2], as.factor(test_data$overall > mean(test_data$overall)))
+auc <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC: ", auc)
+
 ```
 
 As we can see, coach_id doesn't rank as high as midfield, attack, or defence, meaning coaches might
@@ -250,17 +313,21 @@ teamResults <- data.frame(
    Model = c('Random Forest (All Predictors)', 'LR Midfield', 'LR Attack', 'LR Defence', 'LR Coach'),
    Accuracy = c(cmRF$overall["Accuracy"], cmMid$overall["Accuracy"], cmAtt$overall["Accuracy"], cmDef$overall["Accuracy"], 
    cmCoach$overall['Accuracy']),
+   AUC = c(auc, aucMid, aucAtt, aucDef, aucCoach),
    PValue = c(
        cmRF$overall["McnemarPValue"], cmMid$overall["McnemarPValue"], cmAtt$overall["McnemarPValue"], cmDef$overall["McnemarPValue"],
        cmCoach$overall["McnemarPValue"]
    )
 )
 
-print(knitr::kable(teamResults, format = "markdown"))
+teamResults %>%
+kbl() %>%
+kable_styling()
 ```
 
 # Impact
 The data could be used in several ways:
+
 1. Choosing coaches based on their improvement of previous teams.
 This model will not change how coaches are determined in football, but compliment it. A coach's job is to improve 
 a team's performance during their tenure. A manager might use this model to fasten their decision in continuing 
