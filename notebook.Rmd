@@ -218,6 +218,9 @@ for (team in list("Villarreal", "Aston Villa")) {
 ## Defence Players and Goalkeepers
 Let's explore the stats of defence players and goalkeeper overalls in the subset we chose:
 ```{R}
+newPlayers$gkOverall <- as.numeric(newPlayers$gkOverall)
+newPlayers$overall <- as.numeric(newPlayers$overall)
+
 st(newPlayers[, c("gkOverall", "overall")],
     labels = c("GK Overall", "DF Player Overall"),
     title = "Summary of Defence and Goalkeeper Player Statistics",
