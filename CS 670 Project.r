@@ -376,8 +376,9 @@ overallPredDate <- predict(glmOverallDate, testDataPlayers)
 overallPredDate <- ifelse(overallPredDate >= 0, TRUE, FALSE)
 cmOverallDate <- confusionMatrix(as.factor(overallPredDate), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
 print(cmOverallDate)
+class(overallPredDate)
 
-pred2 <- predict(overallPredDate, testDataPlayers)
+pred2 <- predict(glmOverallDate, testDataPlayers)
 pred3 <- prediction(pred2, as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
 aucDefense2 <- performance(pred3, "auc")@y.values[[1]]
 cat("AUC:", aucDefense2)

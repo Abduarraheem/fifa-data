@@ -37,10 +37,7 @@ require(data.table)
 ```
 
 # Data
-Our data consists of three datasets: "male_teams.csv", "male_players (legacy).csv", and "male_coaches.csv". It
-contains data on national and club teams from 2015-2023. The data is scraped from the FIFA games produced annually.
-While our research concerns real-life players and teams, the stats in the games require teams of observers watching
-real matches for months to decide. Thus, we will treat the data as if it applies to the real players and teams.
+Our data consists of three datasets: "male_teams.csv", "male_players (legacy).csv", and "male_coaches.csv". It contains data on national and club teams from 2015-2023. The data is scraped from the FIFA games produced annually. While our research concerns real-life players and teams, the stats in the games require teams of observers watching real matches for months to decide. Thus, we will treat the data as if it applies to the real players and teams.
 
 The dataset can be found at https://www.kaggle.com/datasets/stefanoleone992/fifa-23-complete-player-dataset.
 
@@ -53,12 +50,9 @@ coaches <- read.csv("./male_coaches.csv")
 
 ## Processing
 ### Teams
-For the teams dataset, we wanted to focus on teams who had more than one coach to gauge the impact each coach left
-on the teams overall stats.
+For the teams dataset, we wanted to focus on teams who had more than one coach to gauge the impact each coach left on the teams overall stats.
 
-Before using any of the data, any columns with NA values in them were disregarded to not impede the models later
-on. The Coach_ID column from teams dataset, for example, which is prevelant to answer our questions, instead had 
-its NA values replaced with the median of the column.
+Before using any of the data, any columns with NA values in them were disregarded to not impede the models later on. The Coach_ID column from teams dataset, for example, which is prevelant to answer our questions, instead had its NA values replaced with the median of the column.
 
 As such, the teams dataset was reduced from 54 columns to the 27 listed below:
 
@@ -85,10 +79,7 @@ knitr::kable(names(newTeams), format = "markdown")
 ```
 
 ### Players
-The same was done with the players dataset. To prevent using a large dataset, players were reduced to the first
-3000 unique defence players. With each player having an entry for each FIFA update, the dataset grows large. each
-row then had that defence player's goalkeeper and goalkeeper overall for that FIFA update to help our models later
-answer our thrid and fourth questions.
+The same was done with the players dataset. To prevent using a large dataset, players were reduced to the first 3000 unique defence players. With each player having an entry for each FIFA update, the dataset grows large. each row then had that defence player's goalkeeper and goalkeeper overall for that FIFA update to help our models later answer our thrid and fourth questions.
 
 The same treatment of omitting NA columns was done to the players dataset, leaving 105 columns as shown below:
 ```{R}
@@ -147,8 +138,7 @@ knitr::kable(names(newPlayers), format = "markdown")
 
 # Visualizations
 ## Coaches and Teams
-Let's first explore the current overall of the teams in the dataset, where overall combines their attack, midfield, 
-and defence stats into one.
+Let's first explore the current overall of the teams in the dataset, where overall combines their attack, midfield, and defence stats into one.
 
 ```{R}
 st(teams[, c("overall", "attack", "midfield", "defence")],
@@ -161,8 +151,7 @@ st(teams[, c("overall", "attack", "midfield", "defence")],
     kable_styling()
 ```
 
-To see how the teams' overall changes over the tenure of their different coaches, we plot the teams' overalls throughout. 
-Here we see an example of Villarreal and Aston Villa teams:
+To see how the teams' overall changes over the tenure of their different coaches, we plot the teams' overalls throughout. Here we see an example of Villarreal and Aston Villa teams:
 
 ```{R, echo = FALSE}
 coachNames <- data.frame(matrix(ncol = 1, nrow = 0))
@@ -272,10 +261,7 @@ for (row in list(1, 104)) {
 
 # Models
 ## Coaches and Teams
-To explore the impact of predictors on the overall of a team, we will first use a random forest. 
-It will run on all predictors, and act as a classifier to see whether the overall of a team is 
-higher than the mean of all teams' overalls. The random forest will detail the "importance" of the 
-predictors for us, telling us which has the biggest impact on the response.
+To explore the impact of predictors on the overall of a team, we will first use a random forest. It will run on all predictors, and act as a classifier to see whether the overall of a team is higher than the mean of all teams' overalls. The random forest will detail the "importance" of the predictors for us, telling us which has the biggest impact on the response.
 
 ```{R}
 set.seed(1)
@@ -300,12 +286,11 @@ cat("AUC: ", auc)
 
 ```
 
-As we can see, coach_id doesn't rank as high as midfield, attack, or defence, meaning coaches might
-be less important than we thought. If we explore each predictor on its own in a logistic regression,
-we might discover if the random forest was correct.
+As we can see, coach_id doesn't rank as high as midfield, attack, or defence, meaning coaches might be less important than we thought. If we explore each predictor on its own in a logistic regression, we might discover if the random forest was correct.
 
 ### Testing midfield strength
 First, we run LR on midfield alone as predictor:
+
 ```{R}
 glmMidfield <- glm(as.factor(overall > mean(overall)) ~ midfield,
     data = trainDataTeams, family = binomial())
@@ -396,8 +381,8 @@ abline(a = 0, b = 1)
 And a similar ROC and AUC as well.
 
 ### Testing coach_id
-Because we want to test the coaches' impact over time, we add fifa_update_date, which describes the date
-a row was scraped from the games.
+Because we want to test the coaches' impact over time, we add fifa_update_date, which describes the date a row was scraped from the games.
+
 ```{R}
 glmCoach <- glm(as.factor(overall > mean(overall)) ~ coach_id + fifa_update_date,
     data = trainDataTeams, family = binomial()
@@ -427,8 +412,8 @@ abline(a = 0, b = 1)
 The ROC and AUC don't look good as well. The model seems unable to differentiate between true and false positives/negatives.
 
 ## Defence Players and Goalkeepers
-To determine the best stats of a defence player related to determining their goalkeeper's overall strength, we will run a 
-random forest again with the modified newPlayers dataset and observe the importance of predictors:
+To determine the best stats of a defence player related to determining their goalkeeper's overall strength, we will run a random forest again with the modified newPlayers dataset and observe the importance of predictors:
+
 ```{R}
 set.seed(1)
 split <- 0.7
@@ -449,8 +434,8 @@ varImpPlot(rfPlayers)
 
 pred2 <- predict(rfPlayers, testDataPlayers, type = "prob")
 pred3 <- prediction(pred2[, 2], as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
-auc <- performance(pred3, "auc")@y.values[[1]]
-cat("AUC: ", auc)
+aucRFPlayers <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC: ", aucRFPlayers)
 ```
 
 ### Testing Individual Defence Ratings
@@ -461,8 +446,7 @@ family = binomial())
 
 summary(glmStat)
 ```
-We can see that there is some correlation happening in the model, as evidenced by the "NA" in some of the predictors. Let's
-see which predictors they correlate to.
+We can see that there is some correlation happening in the model, as evidenced by the "NA" in some of the predictors. Let's see which predictors they correlate to.
 
 ```{R}
 corGraph <- cor(sapply(trainDataPlayers[, c(92, 96:101)], function(x) {
@@ -474,8 +458,7 @@ rownames(corGraph) <- names(trainDataPlayers[, c(92, 96:101)])
 corrplot(corGraph)
 
 ```
-So "lb" and "rb" are linearly correlated, as are "lwb" and "rwb", and "cb" and "lcb" and "rcb". We can reduce the number of predictors
-by removing all but one of every correlating group of predictors. Once we train again, it will be without any redundancies.
+So "lb" and "rb" are linearly correlated, as are "lwb" and "rwb", and "cb" and "lcb" and "rcb". We can reduce the number of predictors by removing all but one of every correlating group of predictors. Once we train again, it will be without any redundancies.
 
 ```{R}
 glmStat <- glm(
@@ -505,8 +488,7 @@ plot(perf,
 )
 abline(a = 0, b = 1)
 ```
-The AUC and ROC are not terrible, but maybe including a different stat will result in a better model. Using the overall of the 
-defence player instead of their individual stats in particular positions would make a good second model.
+The AUC and ROC are not terrible, but maybe including a different stat will result in a better model. Using the overall of the defence player instead of their individual stats in particular positions would make a good second model.
 
 ### Testing Defence Player Overall
 ```{R}
@@ -522,8 +504,8 @@ We got a slightly better accuracy with an increase of 1%.
 ```{R}
 pred2 <- predict(glmOverall, testDataPlayers)
 pred3 <- prediction(pred2, as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
-aucDefense2 <- performance(pred3, "auc")@y.values[[1]]
-cat("AUC:", aucDefense2)
+aucDefence2 <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC:", aucDefence2)
 
 perf <- performance(pred3, "tpr", "fpr")
 plot(perf,
@@ -532,8 +514,7 @@ plot(perf,
 )
 abline(a = 0, b = 1)
 ```
-And also a very small increase in AUC. Using overall better encapsulates the abilties of a player than individual positions,
-which may have lead to this increase. Lastly, adding the date a player joins the team might affect the accuracy.
+And also a very small increase in AUC. Using overall better encapsulates the abilties of a player than individual positions, which may have lead to this increase. Lastly, adding the date a player joins the team might affect the accuracy.
 
 ### Testing Defence Player Overall and Date Joined Club
 ```{R}
@@ -548,10 +529,10 @@ print(cmOverallDate)
 The accuracy improves a bit with the new predictor.
 
 ```{R}
-pred2 <- predict(overallPredDate, testDataPlayers)
+pred2 <- predict(glmOverallDate, testDataPlayers)
 pred3 <- prediction(pred2, as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
-aucDefense2 <- performance(pred3, "auc")@y.values[[1]]
-cat("AUC:", aucDefense2)
+aucDefence3 <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC:", aucDefence3)
 
 perf <- performance(pred3, "tpr", "fpr")
 plot(perf,
@@ -560,7 +541,7 @@ plot(perf,
 )
 abline(a = 0, b = 1)
 ```
-But reports similar AUC and ROC
+But reports similar AUC and ROC.
 
 # Results and Analysis
 ## Coaches and Teams
@@ -584,26 +565,20 @@ kbl() %>%
 kable_styling()
 ```
 
-As we can see, the accuracies for midfield, attack, and defence classifiers were much higher than the coach over-time
-classifier, in the range of 80-90%. The result may be due to the distribution of quantitative values in the former three as 
-opposed to the two categorical predictors coach_id and fifa_update_date.
+As we can see, the accuracies for midfield, attack, and defence classifiers were much higher than the coach over-time classifier, in the range of 80-90%. The result may be due to the distribution of quantitative values in the former three as opposed to the two categorical predictors coach_id and fifa_update_date.
 
-But it brings to mind a question: as a coach, they strategize plans and formations for the team. Wouldn't the coach have
-a hand in a team's defence, midfield, and attack strength? It's hard to answer without more data to follow through with. With
-the data we have on hand, we can conclde temporarily for our first two questions: **Defence, Midfield, and Attack can help predict
-a team's overall performance better than who the coach is. The three stats can be related to how the coach delegates his team, and
-would need more in-depth data to study.**
+But it brings to mind a question: as a coach, they strategize plans and formations for the team. Wouldn't the coach have a hand in a team's defence, midfield, and attack strength? It's hard to answer without more data to follow through with. With the data we have on hand, we can conclde temporarily for our first two questions: **Defence, Midfield, and Attack can help predict a team's overall performance better than who the coach is. The three stats can be related to how the coach delegates his team, and would need more in-depth data to study.**
 
 ## Defence Players and Goalkeepers
 ### Summary of Test Data Model Comparision
 ```{R, echo = FALSE}
 
 playerResults <- data.frame(
-   Model = c('Random Forest (All Predictors)', 'LR Defender Position Stats', 'LR Defender Overall'),
-   Accuracy = c(cmRFPlayers$overall["Accuracy"], cmPosition$overall["Accuracy"], cmPlayerOverall$overall["Accuracy"]),
-   AUC = c(auc, aucMid, aucAtt, aucDef, aucCoach),
+   Model = c('Random Forest (All Predictors)', 'LR Defender Position Stats', 'LR Defender Overall', 'LR Defender Overall + Joined Date'),
+   Accuracy = c(cmRFPlayers$overall["Accuracy"], cmPosition$overall["Accuracy"], cmPlayerOverall$overall["Accuracy"], cmOverallDate$overall["Accuracy"]),
+   AUC = c(aucRFPlayers, aucDefence1, aucDefence2, aucDefence3),
    PValue = c(
-       cmRFPlayers$overall["McnemarPValue"], cmPosition$overall["McnemarPValue"], cmPlayerOverall$overall["McnemarPValue"])
+       cmRFPlayers$overall["McnemarPValue"], cmPosition$overall["McnemarPValue"], cmPlayerOverall$overall["McnemarPValue"], cmOverallDate$overall["McnemarPValue"])
 )
 
 playerResults %>%
@@ -611,34 +586,21 @@ kbl() %>%
 kable_styling()
 ```
 
-As we can see, using the "overall" stat was better than using a player's stats when in specific defending positions. The 
-accuracy doesn't help a lot in answering our question. A defender can classify a goalkeeper's performance 77% of the time,
-which is not high enough to conclusively make our hypothesis true. Adding in when the defender joined the team increased
-the accuracy a little, but still not enough for our question.
+As we can see, using the "overall" stat was better than using a player's stats when in specific defending positions. The accuracy doesn't help a lot in answering our question. A defender can classify a goalkeeper's performance 77% of the time, which is not high enough to conclusively make our hypothesis true. Adding in when the defender joined the team increased the accuracy a little, but still not enough for our question.
 
-The random forest showed a lot more important variables before a defender's stats, but they were all categorical. This makes
-me believe which team the goalkeeper joined had a bigger impact on their overall than a defender's performance ("club_team_id",
- "club_joined_date", "club_name"...). 
+The random forest showed a lot more important variables before a defender's stats, but they were all categorical. This makes me believe which team the goalkeeper joined had a bigger impact on their overall than a defender's performance ("club_team_id", "club_joined_date", "club_name"...). 
  
-It leads us to conclude that for our third and fourth questions: **While a defender's stats and time they joined the club can impact the 
-goalkeeper's performance sufficiently, the team the goalkeeper ends up joining has a bigger impact.**
+It leads us to conclude that for our third and fourth questions: **While a defender's stats and time they joined the club can impact the goalkeeper's performance sufficiently, the team the goalkeeper ends up joining has a bigger impact.**
 
 
 # Impact
 The data could be used in several ways:
 
 1. Choosing coaches based on their improvement of previous teams.
-This model will not change how coaches are determined in football, but compliment it. A coach's job is to improve 
-a team's performance during their tenure. A manager might use this model to fasten their decision in continuing 
-with a certain coach or choosing which coach to bring next based on past achievements.
+This model will not change how coaches are determined in football, but compliment it. A coach's job is to improve a team's performance during their tenure. A manager might use this model to fasten their decision in continuing with a certain coach or choosing which coach to bring next based on past achievements.
 
 2. Choosing defence players based on past synergy with goalkeepers.
-A team manager would probably buy and sell their players based on whether they work well with the goalkeepers or
-not. They could compare the stats of a goalkeeper when a defender joined, and their stats when the two players 
-separate and determine a defence player's worth based on that.
+A team manager would probably buy and sell their players based on whether they work well with the goalkeepers or not. They could compare the stats of a goalkeeper when a defender joined, and their stats when the two players separate and determine a defence player's worth based on that.
 
 3. Betting on matches and players.
-The model's could help predict slightly the performance of a goalkeeper or a team with a certain coach. We say
-slightly because the classifiers check if the overall is higher than the mean overall. That might not help betters
-a lot, but it still could be considered unethical to publish without at least a disclaimer or use privately with
-football managers.
+The model's could help predict slightly the performance of a goalkeeper or a team with a certain coach. We say slightly because the classifiers check if the overall is higher than the mean overall. That might not help betters a lot, but it still could be considered unethical to publish without at least a disclaimer or use privately with football managers.
