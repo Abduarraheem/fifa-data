@@ -7,6 +7,9 @@ library("ggplot2")
 library("ggrepel")
 library("randomForest")
 library("ROCR")
+library("vtable")
+library("kableExtra")
+library("corrplot")
 require(data.table)
 
 team_plots_dir <- "team_plots/"
@@ -339,11 +342,74 @@ cat("AUC:", aucDefense1)
 perf <- performance(pred3, "tpr", "fpr")
 plot(perf,
     lwd = 2,
-    main = "Defence Player ROC"
+    main = "Defence Player Defence Stats ROC"
+)
+abline(a = 0, b = 1)
+
+#====================================================================
+
+glmOverall <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(overall), data = trainDataPlayers, family = binomial())
+summary(glmOverall)
+
+overallPred <- predict(glmOverall, testDataPlayers)
+overallPred <- ifelse(overallPred >= 0, TRUE, FALSE)
+confusionMatrix(as.factor(overallPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
+
+pred2 <- predict(glmOverall, testDataPlayers)
+pred3 <- prediction(pred2, as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
+aucDefense2 <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC:", aucDefense2)
+
+perf <- performance(pred3, "tpr", "fpr")
+plot(perf,
+    lwd = 2,
+    main = "Defence Player Overall ROC"
+)
+abline(a = 0, b = 1)
+
+# ====================================================================
+
+glmOverallDate <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(overall) + club_joined_date, data = trainDataPlayers, family = binomial())
+summary(glmOverallDate)
+
+overallPredDate <- predict(glmOverallDate, testDataPlayers)
+overallPredDate <- ifelse(overallPredDate >= 0, TRUE, FALSE)
+cmOverallDate <- confusionMatrix(as.factor(overallPredDate), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
+print(cmOverallDate)
+
+pred2 <- predict(overallPredDate, testDataPlayers)
+pred3 <- prediction(pred2, as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
+aucDefense2 <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC:", aucDefense2)
+
+perf <- performance(pred3, "tpr", "fpr")
+plot(perf,
+    lwd = 2,
+    main = "Defence Player Overall + Club Joined Date ROC"
 )
 abline(a = 0, b = 1)
 
 #####################################################################
+
+newPlayers$overall <- as.numeric(newPlayers$overall)
+
+corGraph <- cor(sapply(trainDataPlayers[, c(92, 96:101)], function(x) {
+    as.numeric(x)
+}))
+
+colnames(corGraph) <- names(trainDataPlayers[, c(92, 96:101)])
+rownames(corGraph) <- names(trainDataPlayers[, c(92, 96:101)])
+corrplot(corGraph)
+
+st(newPlayers[, c("gkOverall", "overall")],
+    labels = c("GK Overall", "DF Player Overall"),
+    title = "Summary of Defence and Goalkeeper Player Statistics",
+    col.align = "right",
+    out = "return"
+) %>%
+    kbl(caption = "Summary of Defence and Goalkeeper Player Statistics") %>%
+    kable_styling()
+
 
 teams2 <- teams
 players2 <- players

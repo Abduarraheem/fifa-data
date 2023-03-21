@@ -1,0 +1,11 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/1017643/494459b001c745dbb3a8f1d743a08b26
+bundleId: https://api.rpubs.com/api/v1/document/1017643/494459b001c745dbb3a8f1d743a08b26
+url: http://rpubs.com/AzAlabduljalil/1017643
+when: 1679366315.57396
+lastSyncTime: 1679366315.57397

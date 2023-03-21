@@ -14,6 +14,7 @@ install.packages("randomForest")
 install.packages("ROCR")
 install.packages("kableExtra")
 install.packages("vtable")
+install.packages("corrplot")
 ```
 
 ## Load libraries
@@ -28,6 +29,7 @@ library("randomForest")
 library("ROCR")
 library("kableExtra")
 library("vtable")
+library("corrplot")
 require(data.table)
 ```
 
@@ -436,8 +438,9 @@ rfPlayers <- randomForest(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOv
 )
 
 predictions <- predict(rfPlayers, testDataPlayers)
-confusionMatrix(predictions, as.factor(as.numeric(testDataPlayers$gkOverall)
+cmRFPlayers <- confusionMatrix(predictions, as.factor(as.numeric(testDataPlayers$gkOverall)
 > mean(as.numeric(testDataPlayers$gkOverall))))
+print(cmRFPlayers)
 
 varImpPlot(rfPlayers)
 
@@ -447,6 +450,7 @@ auc <- performance(pred3, "auc")@y.values[[1]]
 cat("AUC: ", auc)
 ```
 
+### Testing Individual Defence Ratings
 ```{R}
 glmStat <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(rb) + as.numeric(cb) + 
 as.numeric(rwb) + as.numeric(lwb) + as.numeric(lb) + as.numeric(lcb) + as.numeric(rcb), data = trainDataPlayers, 
@@ -458,12 +462,17 @@ We can see that there is some correlation happening in the model, as evidenced b
 see which predictors they correlate to.
 
 ```{R}
-cor(sapply(trainDataPlayers[, 96:101], function(x) {
+corGraph <- cor(sapply(trainDataPlayers[, c(92, 96:101)], function(x) {
     as.numeric(x)
 }))
+
+colnames(corGraph) <- names(trainDataPlayers[, c(92, 96:101)])
+rownames(corGraph) <- names(trainDataPlayers[, c(92, 96:101)])
+corrplot(corGraph)
+
 ```
-So "lb" and "rb" are correlated, as are "lwb" and "rwb", and "cb" and "lcb" and "rcb". We can reduce the number of predictors
-by removing all but one of every correlating group of predictors
+So "lb" and "rb" are linearly correlated, as are "lwb" and "rwb", and "cb" and "lcb" and "rcb". We can reduce the number of predictors
+by removing all but one of every correlating group of predictors. Once we train again, it will be without any redundancies.
 
 ```{R}
 glmStat <- glm(
@@ -475,8 +484,10 @@ glmStat <- glm(
 
 statPred <- predict(glmStat, testDataPlayers)
 statPred <- ifelse(statPred >= 0, TRUE, FALSE)
-confusionMatrix(as.factor(statPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
+cmPosition <- confusionMatrix(as.factor(statPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
+print(cmPosition)
 ```
+The accuracy is lower than we imagined, with 76% accuracy.
 
 ```{R}
 pred2 <- predict(glmStat, testDataPlayers)
@@ -491,6 +502,62 @@ plot(perf,
 )
 abline(a = 0, b = 1)
 ```
+The AUC and ROC are not terrible, but maybe including a different stat will result in a better model. Using the overall of the 
+defence player instead of their individual stats in particular positions would make a good second model.
+
+### Testing Defence Player Overall
+```{R}
+glmOverall <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(overall), data = trainDataPlayers, family = binomial())
+
+overallPred <- predict(glmOverall, testDataPlayers)
+overallPred <- ifelse(overallPred >= 0, TRUE, FALSE)
+cmPlayerOverall <- confusionMatrix(as.factor(overallPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
+print(cmPlayerOverall)
+```
+We got a slightly better accuracy with an increase of 1%.
+
+```{R}
+pred2 <- predict(glmOverall, testDataPlayers)
+pred3 <- prediction(pred2, as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
+aucDefense2 <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC:", aucDefense2)
+
+perf <- performance(pred3, "tpr", "fpr")
+plot(perf,
+    lwd = 2,
+    main = "Defence Player Overall ROC"
+)
+abline(a = 0, b = 1)
+```
+And also a very small increase in AUC. Using overall better encapsulates the abilties of a player than individual positions,
+which may have lead to this increase. Lastly, adding the date a player joins the team might affect the accuracy.
+
+### Testing Defence Player Overall and Date Joined Club
+```{R}
+glmOverallDate <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(overall) + club_joined_date, data = trainDataPlayers, family = binomial())
+summary(glmOverallDate)
+
+overallPredDate <- predict(glmOverallDate, testDataPlayers)
+overallPredDate <- ifelse(overallPredDate >= 0, TRUE, FALSE)
+cmOverallDate <- confusionMatrix(as.factor(overallPredDate), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
+print(cmOverallDate)
+```
+The accuracy improves a bit with the new predictor.
+
+```{R}
+pred2 <- predict(overallPredDate, testDataPlayers)
+pred3 <- prediction(pred2, as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
+aucDefense2 <- performance(pred3, "auc")@y.values[[1]]
+cat("AUC:", aucDefense2)
+
+perf <- performance(pred3, "tpr", "fpr")
+plot(perf,
+    lwd = 2,
+    main = "Defence Player Overall + Club Joined Date ROC"
+)
+abline(a = 0, b = 1)
+```
+But reports similar AUC and ROC
 
 # Results and Analysis
 ## Coaches and Teams
@@ -521,12 +588,37 @@ opposed to the two categorical predictors coach_id and fifa_update_date.
 But it brings to mind a question: as a coach, they strategize plans and formations for the team. Wouldn't the coach have
 a hand in a team's defence, midfield, and attack strength? It's hard to answer without more data to follow through with. With
 the data we have on hand, we can conclde temporarily for our first two questions: **Defence, Midfield, and Attack can help predict
-a team's overall performance better than who the coach is. The three stats can be realted to how the coach delegates his team.**
+a team's overall performance better than who the coach is. The three stats can be related to how the coach delegates his team, and
+would need more in-depth data to study.**
 
 ## Defence Players and Goalkeepers
+### Summary of Test Data Model Comparision
+```{R, echo = FALSE}
 
+playerResults <- data.frame(
+   Model = c('Random Forest (All Predictors)', 'LR Defender Position Stats', 'LR Defender Overall'),
+   Accuracy = c(cmRFPlayers$overall["Accuracy"], cmPosition$overall["Accuracy"], cmPlayerOverall$overall["Accuracy"]),
+   AUC = c(auc, aucMid, aucAtt, aucDef, aucCoach),
+   PValue = c(
+       cmRFPlayers$overall["McnemarPValue"], cmPosition$overall["McnemarPValue"], cmPlayerOverall$overall["McnemarPValue"])
+)
 
+playerResults %>%
+kbl() %>%
+kable_styling()
+```
 
+As we can see, using the "overall" stat was better than using a player's stats when in specific defending positions. The 
+accuracy doesn't help a lot in answering our question. A defender can classify a goalkeeper's performance 77% of the time,
+which is not high enough to conclusively make our hypothesis true. Adding in when the defender joined the team increased
+the accuracy a little, but still not enough for our question.
+
+The random forest showed a lot more important variables before a defender's stats, but they were all categorical. This makes
+me believe which team the goalkeeper joined had a bigger impact on their overall than a defender's performance ("club_team_id",
+ "club_joined_date", "club_name"...). 
+ 
+It leads us to conclude that for our third and fourth questions: **While a defender's stats and time they joined the club can impact the 
+goalkeeper's performance sufficiently, the team the goalkeeper ends up joining has a bigger impact.**
 
 
 # Impact
