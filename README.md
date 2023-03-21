@@ -1,4 +1,4 @@
-# Datesets
+# Datasets
 ## FIFA 23 complete player dataset
 https://www.kaggle.com/datasets/stefanoleone992/fifa-23-complete-player-dataset
 ## European Soccer Database
