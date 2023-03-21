@@ -3,6 +3,9 @@
 library(knitr)
 knitr::opts_chunk$set(warning = FALSE)
 ```
+# Authors
+* Aziz Alabduljalil
+* Abduarraheem Elfandi
 
 ## Install libraries
 ```{R, eval = FALSE}
