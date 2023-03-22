@@ -7,7 +7,7 @@ knitr::opts_chunk$set(warning = FALSE)
 * Aziz Alabduljalil
 * Abduarraheem Elfandi
 
-## disclaimer
+## Disclaimer
 Each section is divided between two subsections: Coaches and Teams, and Defence Players and Goalkeepers. The first subsection will explore the first and second questions, while the second subsection explores the third and fourth questions.
 
 ## Install libraries
@@ -131,6 +131,7 @@ newPlayers[] <- lapply(newPlayers, function(x) {
 ``` {R, echo = FALSE}
 knitr::kable(names(newPlayers), format = "markdown")
 ```
+For more detail on what each column represents, please follow the dataset link.
 
 # Questions
 1. Do coaches have a big impact on the overall performance of the team they coach?
@@ -300,6 +301,8 @@ cat("AUC: ", auc)
 
 As we can see, coach_id doesn't rank as high as midfield, attack, or defence, meaning coaches might be less important than we thought. If we explore each predictor on its own in a logistic regression, we might discover if the random forest was correct.
 
+For logistic regression, we will try to classify whether a team's overall rating is higher than the mean team overall rating or not. The following models all use the same response, but use different predictors as explained in their titles.
+
 ### Logistic Regression: Testing midfield strength
 First, we run LR on midfield alone as predictor:
 
@@ -450,7 +453,9 @@ pred3 <- prediction(pred2[, 2], as.factor(as.numeric(testDataPlayers$gkOverall) 
 aucRFPlayers <- performance(pred3, "auc")@y.values[[1]]
 cat("AUC: ", aucRFPlayers)
 ```
-A lot of the important predictors are categorical, which makes logistic regression harder with them as predictors. Instead, we will use the highest quantitative variables: "overall", overall of the defence player; "rb, cb, lb, lwb, rwb, lcb, rcb", the individual stats of the defence player if they played in those positions.
+A lot of the important predictors are categorical, which makes logistic regression harder with them as predictors. Instead, we will use the highest quantitative variables: "overall", overall rating of the defence player; "rb, cb, lb, lwb, rwb, lcb, rcb", the individual stats of the defence player if they played in those positions to predict the goalkeeper's overall rating.
+
+For logistic regression, we will try to classify whether a goalkeeper's overall rating is higher than the mean goalkeeper overall rating or not using defender stats as predictors. The following models all use the same response, but use different predictors as explained in their titles.
 
 ### Logistic Regression: Testing Individual Defence Ratings
 ```{R}
@@ -460,7 +465,7 @@ family = binomial())
 
 summary(glmStat)
 ```
-We can see that there is some correlation happening in the model, as evidenced by the "NA" in some of the predictors. Let's see which predictors they correlate to.
+First we use a defender's individual stats if they played in those positions to classify the goalkeeper's overall rating. We can see that there is some correlation happening in the model, as evidenced by the "NA" in some of the predictors. Let's see which predictors they correlate to.
 
 ```{R}
 corGraph <- cor(sapply(trainDataPlayers[, c(92, 96:101)], function(x) {
@@ -513,7 +518,7 @@ overallPred <- ifelse(overallPred >= 0, TRUE, FALSE)
 cmPlayerOverall <- confusionMatrix(as.factor(overallPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
 print(cmPlayerOverall)
 ```
-Here, **"gkOverall" is the overall stat of the goalkeeper, while "overall" is the overall stat of the defender.** We got a slightly better accuracy with an increase of 1%.
+Here, **"gkOverall" is the overall rating of the goalkeeper, while "overall" is the overall rating of the defender.** We got a slightly better accuracy with an increase of 1%.
 
 ```{R}
 pred2 <- predict(glmOverall, testDataPlayers)
@@ -540,7 +545,7 @@ overallPredDate <- ifelse(overallPredDate >= 0, TRUE, FALSE)
 cmOverallDate <- confusionMatrix(as.factor(overallPredDate), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
 print(cmOverallDate)
 ```
-The accuracy improves a bit with the new predictor.
+Now we add as predictor the date the defender joins the goalkeeper's team in addition to the defender's overall rating. The accuracy improves a bit with the new predictor.
 
 ```{R}
 pred2 <- predict(glmOverallDate, testDataPlayers)
@@ -564,14 +569,16 @@ But reports similar AUC and ROC.
 ```{R, echo = FALSE}
 
 teamResults <- data.frame(
-   Model = c('Random Forest (All Predictors)', 'LR Midfield', 'LR Attack', 'LR Defence', 'LR Coach (Over Time)'),
-   Accuracy = c(cmRF$overall["Accuracy"], cmMid$overall["Accuracy"], cmAtt$overall["Accuracy"], cmDef$overall["Accuracy"], 
-   cmCoach$overall['Accuracy']),
-   AUC = c(auc, aucMid, aucAtt, aucDef, aucCoach),
-   PValue = c(
-       cmRF$overall["McnemarPValue"], cmMid$overall["McnemarPValue"], cmAtt$overall["McnemarPValue"], cmDef$overall["McnemarPValue"],
-       cmCoach$overall["McnemarPValue"]
-   )
+    Model = c('Random Forest (All Predictors)', 'LR Midfield', 'LR Attack', 'LR Defence', 'LR Coach (Over Time)'),
+    Accuracy = c(cmRF$overall["Accuracy"], cmMid$overall["Accuracy"], cmAtt$overall["Accuracy"], cmDef$overall["Accuracy"], 
+    cmCoach$overall['Accuracy']),
+    AUC = c(auc, aucMid, aucAtt, aucDef, aucCoach),
+    Precision = c(cmRF$overall["Precision"], cmMid$overall["Precision"], cmAtt$overall["Precision"], cmDef$overall["Precision"],
+        cmCoach$overall["Precision"]),
+    Recall = c(cmRF$overall["Recall"], cmMid$overall["Recall"], cmAtt$overall["Recall"], cmDef$overall["Recall"],
+        cmCoach$overall["Recall"]),
+    F-1 Score = c(cmRF$overall["F1"], cmMid$overall["F1"], cmAtt$overall["F1"], cmDef$overall["F1"],
+        cmCoach$overall["F1"])
 )
 
 teamResults %>%
@@ -591,8 +598,9 @@ playerResults <- data.frame(
    Model = c('Random Forest (All Predictors)', 'LR Defender Position Stats', 'LR Defender Overall', 'LR Defender Overall + Joined Date'),
    Accuracy = c(cmRFPlayers$overall["Accuracy"], cmPosition$overall["Accuracy"], cmPlayerOverall$overall["Accuracy"], cmOverallDate$overall["Accuracy"]),
    AUC = c(aucRFPlayers, aucDefence1, aucDefence2, aucDefence3),
-   PValue = c(
-       cmRFPlayers$overall["McnemarPValue"], cmPosition$overall["McnemarPValue"], cmPlayerOverall$overall["McnemarPValue"], cmOverallDate$overall["McnemarPValue"])
+   Precision = c(cmRFPlayers$overall["Precision"], cmPosition$overall["Precision"], cmPlayerOverall$overall["Precision"], cmOverallDate$overall["Precision"]),
+   Recall = c(cmRFPlayers$overall["Recall"], cmPosition$overall["Recall"], cmPlayerOverall$overall["Recall"], cmOverallDate$overall["Recall"]),
+   F-1 Score = c(cmRFPlayers$overall["F1"], cmPosition$overall["F1"], cmPlayerOverall$overall["F1"], cmOverallDate$overall["F1"])
 )
 
 playerResults %>%
