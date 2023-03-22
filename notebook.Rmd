@@ -573,12 +573,12 @@ teamResults <- data.frame(
     Accuracy = c(cmRF$overall["Accuracy"], cmMid$overall["Accuracy"], cmAtt$overall["Accuracy"], cmDef$overall["Accuracy"], 
     cmCoach$overall['Accuracy']),
     AUC = c(auc, aucMid, aucAtt, aucDef, aucCoach),
-    Precision = c(cmRF$overall["Precision"], cmMid$overall["Precision"], cmAtt$overall["Precision"], cmDef$overall["Precision"],
-        cmCoach$overall["Precision"]),
-    Recall = c(cmRF$overall["Recall"], cmMid$overall["Recall"], cmAtt$overall["Recall"], cmDef$overall["Recall"],
-        cmCoach$overall["Recall"]),
-    F-1 Score = c(cmRF$overall["F1"], cmMid$overall["F1"], cmAtt$overall["F1"], cmDef$overall["F1"],
-        cmCoach$overall["F1"])
+    Precision = c(cmRF$byClass["Precision"], cmMid$byClass["Precision"], cmAtt$byClass["Precision"], cmDef$byClass["Precision"],
+        cmCoach$byClass["Precision"]),
+    Recall = c(cmRF$byClass["Recall"], cmMid$byClass["Recall"], cmAtt$byClass["Recall"], cmDef$byClass["Recall"],
+        cmCoach$byClass["Recall"]),
+    F-1 Score = c(cmRF$byClass["F1"], cmMid$byClass["F1"], cmAtt$byClass["F1"], cmDef$byClass["F1"],
+        cmCoach$byClass["F1"])
 )
 
 teamResults %>%
@@ -598,9 +598,9 @@ playerResults <- data.frame(
    Model = c('Random Forest (All Predictors)', 'LR Defender Position Stats', 'LR Defender Overall', 'LR Defender Overall + Joined Date'),
    Accuracy = c(cmRFPlayers$overall["Accuracy"], cmPosition$overall["Accuracy"], cmPlayerOverall$overall["Accuracy"], cmOverallDate$overall["Accuracy"]),
    AUC = c(aucRFPlayers, aucDefence1, aucDefence2, aucDefence3),
-   Precision = c(cmRFPlayers$overall["Precision"], cmPosition$overall["Precision"], cmPlayerOverall$overall["Precision"], cmOverallDate$overall["Precision"]),
-   Recall = c(cmRFPlayers$overall["Recall"], cmPosition$overall["Recall"], cmPlayerOverall$overall["Recall"], cmOverallDate$overall["Recall"]),
-   F-1 Score = c(cmRFPlayers$overall["F1"], cmPosition$overall["F1"], cmPlayerOverall$overall["F1"], cmOverallDate$overall["F1"])
+   Precision = c(cmRFPlayers$byClass["Precision"], cmPosition$byClass["Precision"], cmPlayerOverall$byClass["Precision"], cmOverallDate$byClass["Precision"]),
+   Recall = c(cmRFPlayers$byClass["Recall"], cmPosition$byClass["Recall"], cmPlayerOverall$byClass["Recall"], cmOverallDate$byClass["Recall"]),
+   F-1 Score = c(cmRFPlayers$byClass["F1"], cmPosition$byClass["F1"], cmPlayerOverall$byClass["F1"], cmOverallDate$byClass["F1"])
 )
 
 playerResults %>%
