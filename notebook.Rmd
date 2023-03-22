@@ -577,7 +577,7 @@ teamResults <- data.frame(
         cmCoach$byClass["Precision"]),
     Recall = c(cmRF$byClass["Recall"], cmMid$byClass["Recall"], cmAtt$byClass["Recall"], cmDef$byClass["Recall"],
         cmCoach$byClass["Recall"]),
-    F-1 Score = c(cmRF$byClass["F1"], cmMid$byClass["F1"], cmAtt$byClass["F1"], cmDef$byClass["F1"],
+    F1 = c(cmRF$byClass["F1"], cmMid$byClass["F1"], cmAtt$byClass["F1"], cmDef$byClass["F1"],
         cmCoach$byClass["F1"])
 )
 
@@ -600,7 +600,7 @@ playerResults <- data.frame(
    AUC = c(aucRFPlayers, aucDefence1, aucDefence2, aucDefence3),
    Precision = c(cmRFPlayers$byClass["Precision"], cmPosition$byClass["Precision"], cmPlayerOverall$byClass["Precision"], cmOverallDate$byClass["Precision"]),
    Recall = c(cmRFPlayers$byClass["Recall"], cmPosition$byClass["Recall"], cmPlayerOverall$byClass["Recall"], cmOverallDate$byClass["Recall"]),
-   F-1 Score = c(cmRFPlayers$byClass["F1"], cmPosition$byClass["F1"], cmPlayerOverall$byClass["F1"], cmOverallDate$byClass["F1"])
+   F1 = c(cmRFPlayers$byClass["F1"], cmPosition$byClass["F1"], cmPlayerOverall$byClass["F1"], cmOverallDate$byClass["F1"])
 )
 
 playerResults %>%
