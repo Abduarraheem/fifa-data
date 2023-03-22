@@ -7,6 +7,9 @@ knitr::opts_chunk$set(warning = FALSE)
 * Aziz Alabduljalil
 * Abduarraheem Elfandi
 
+## disclaimer
+Each section is divided between two subsections: Coaches and Teams, and Defence Players and Goalkeepers. The first subsection will explore the first and second questions, while the second subsection explores the third and fourth questions.
+
 ## Install libraries
 ```{R, eval = FALSE}
 install.packages("caret")
@@ -67,9 +70,8 @@ for (team in unique(teams$team_id)) {
     }
 }
 
-# Replaces NA values in coach_id column with median of coach_id
-val <- median(na.omit(newTeams$coach_id))
-newTeams$coach_id[is.na(newTeams$coach_id)] <- val
+# Replaces NA values in coach_id column with a random coach_id
+newTeams$coach_id[is.na(newTeams$coach_id)] <- sample.int(37666625, 1, replace = TRUE)
 
 newTeams <- newTeams[, colSums(is.na(newTeams)) == 0] # Remove all columns with any NA values in them
 ```
@@ -84,7 +86,7 @@ The same was done with the players dataset. To prevent using a large dataset, pl
 The same treatment of omitting NA columns was done to the players dataset, leaving 105 columns as shown below:
 ```{R}
 modifiedPlayers <- subset(players, club_position %in%
-    c("CB", "LB", "RB", "RWB", "LWB", "SW"))
+    c("CB", "LB", "RB", "RWB", "LWB"))
 
 modifiedPlayers <- subset(modifiedPlayers, short_name %in%
     unique(modifiedPlayers$short_name)[1:3000])
@@ -198,7 +200,7 @@ for (team in list("Villarreal", "Aston Villa")) {
     plot <- ggplot(finalTeamDF, aes(finalTeamDF$fifa_update_date, finalTeamDF$overall)) +
         ggtitle("Coach and Team Performance Overall") +
         xlab("Date") +
-        ylab("Overall Rating") +
+        ylab("Overall Rating of Team") +
         geom_point() +
         geom_text_repel(aes(label = paste(finalTeamDF$team_name, "/", coachNames$name)))
 
@@ -208,6 +210,11 @@ for (team in list("Villarreal", "Aston Villa")) {
     print(plot)
 }
 ```
+Here the x-axis shows the date the data was collected, and the y-axis shows the overall rating of the team. The format of labeling is (Team/Coach), and shows the points where a coach joined the team and when they left to compare ratings at both time periods.
+
+As we can see, in the first plot, Villarreal ended 2014 with an overall rating of 76. That's when coach U. Emery joined the team. When he left the team in July 2022, the team's rating rose to 80 increasing 4 points under his tenure. His successor E. Seiten Solar, who only coached the team a few months so far, maintained the rating.
+
+In the second plot, Aston Villa ended 2014 with a rating of 74 when S. Gerrard joined as coach. When he left in October 2022, the team's rating rested at 79, increasing 5 points under his tenure. U. Emery then joined recently, so has not changed the team's rating at all.
 
 ## Defence Players and Goalkeepers
 Let's explore the stats of defence players and goalkeeper overalls in the subset we chose:
@@ -250,7 +257,7 @@ for (row in list(1, 104)) {
         plot <- ggplot(filterData, aes(filterData$fifa_update_date, filterData$overall)) +
             ggtitle("GK Overall as Cause of Defender") +
             xlab("Date") +
-            ylab("Overall Rating") +
+            ylab("Overall Rating of Goalkeeper]") +
             geom_point() +
             geom_text_repel(aes(label = paste(filterData$short_name, "/", modifiedPlayers[row, ]$short_name)))
 
@@ -258,6 +265,11 @@ for (row in list(1, 104)) {
     }
 }
 ```
+Like in the previous section, the x-axis shows the date the data was collected, and the y-axis shows the overall rating of the goalkeeper. The format for the point labels is (Goalkeeper Name/Defender Name), and shows the points where a goalkeeper joins the defender's team and when they leave to compare the overall rating at both time periods.
+
+In the first plot, the goalkeeper M. Neuer joins the defender J. Boateng's team in 2014 with an overall rating of 90. In September 2019, Neuer's rating increases to 92 for two years before crashing down to 88 in September 2019. He then raises his rating back to his original 90 in September 2021 where it remains till today. Whether J. Boateng's performance as defender influenced this change remains to be seen.
+
+In the second plot, the goalkeeper K. Trapp leaves the defender C. Djakpa's team and is replaced with the goalkeeper L. Hradecky, who joins with an overall rating of 70. When he leaves in September 2017, L. Hradecky's rating rises to 81. F. Ronnow doesn't stay in the team long enough for data to be collected before K. Trapp returns in September 2019 with a rating of 83. He stays with the team till the current day, where his rating increased to 86. C. Djakpa's influence as a defender on his goalkeepers' ratings will be analyzed later.
 
 # Models
 ## Coaches and Teams
@@ -288,7 +300,7 @@ cat("AUC: ", auc)
 
 As we can see, coach_id doesn't rank as high as midfield, attack, or defence, meaning coaches might be less important than we thought. If we explore each predictor on its own in a logistic regression, we might discover if the random forest was correct.
 
-### Testing midfield strength
+### Logistic Regression: Testing midfield strength
 First, we run LR on midfield alone as predictor:
 
 ```{R}
@@ -301,7 +313,7 @@ midfieldPred <- ifelse(midfieldPred >= 0, TRUE, FALSE)
 cmMid <- confusionMatrix(as.factor(midfieldPred), as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 print(cmMid)
 ```
-Pretty high accuracy for the predictor alone.
+Pretty high accuracy for the predictor alone, a 92%.
 
 ```{R}
 pred2 <- predict(glmMidfield, testDataTeams)
@@ -319,7 +331,7 @@ abline(a = 0, b = 1)
 And a good ROC with a high AUC value.
 
 
-### Testing attack strength
+### Logistic Regression: Testing attack strength
 Now we check for attack alone:
 ```{R}
 glmAttack <- glm(as.factor(overall > mean(overall)) ~ attack,
@@ -331,7 +343,7 @@ attackPred <- ifelse(attackPred >= 0, TRUE, FALSE)
 cmAtt <- confusionMatrix(as.factor(attackPred), as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 print(cmAtt)
 ```
-We can see a dip in accuracy here, a 0.88 vs the high 0.92 before.
+We can see a dip in accuracy here, a 88% vs the high 92% before.
 
 ```{R}
 pred2 <- predict(glmAttack, testDataTeams)
@@ -348,7 +360,7 @@ abline(a = 0, b = 1)
 ```
 But the ROC and AUC match midfield's model.
 
-### Testing defence strength
+### Logistic Regression: Testing defence strength
 Next we move to defence:
 
 ```{R}
@@ -380,7 +392,7 @@ abline(a = 0, b = 1)
 ```
 And a similar ROC and AUC as well.
 
-### Testing coach_id
+### Logistic Regression: Testing coach_id
 Because we want to test the coaches' impact over time, we add fifa_update_date, which describes the date a row was scraped from the games.
 
 ```{R}
@@ -394,7 +406,7 @@ coachPred <- ifelse(coachPred >= 0, TRUE, FALSE)
 cmCoach <- confusionMatrix(as.factor(coachPred), as.factor(testDataTeams$overall > mean(testDataTeams$overall)))
 print(cmCoach)
 ```
-The huge dip in accuracy is apparent here, a 0.62 vs the 0.8's and 0.9's before.
+The huge dip in accuracy is apparent here, a 62% vs the 80's and 90's before.
 
 ```{R}
 pred2 <- predict(glmCoach, testDataTeams)
@@ -414,6 +426,7 @@ The ROC and AUC don't look good as well. The model seems unable to differentiate
 ## Defence Players and Goalkeepers
 To determine the best stats of a defence player related to determining their goalkeeper's overall strength, we will run a random forest again with the modified newPlayers dataset and observe the importance of predictors:
 
+### Random Forest
 ```{R}
 set.seed(1)
 split <- 0.7
@@ -437,8 +450,9 @@ pred3 <- prediction(pred2[, 2], as.factor(as.numeric(testDataPlayers$gkOverall) 
 aucRFPlayers <- performance(pred3, "auc")@y.values[[1]]
 cat("AUC: ", aucRFPlayers)
 ```
+A lot of the important predictors are categorical, which makes logistic regression harder with them as predictors. Instead, we will use the highest quantitative variables: "overall", overall of the defence player; "rb, cb, lb, lwb, rwb, lcb, rcb", the individual stats of the defence player if they played in those positions.
 
-### Testing Individual Defence Ratings
+### Logistic Regression: Testing Individual Defence Ratings
 ```{R}
 glmStat <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(rb) + as.numeric(cb) + 
 as.numeric(rwb) + as.numeric(lwb) + as.numeric(lb) + as.numeric(lcb) + as.numeric(rcb), data = trainDataPlayers, 
@@ -470,7 +484,7 @@ glmStat <- glm(
 
 statPred <- predict(glmStat, testDataPlayers)
 statPred <- ifelse(statPred >= 0, TRUE, FALSE)
-cmPosition <- confusionMatrix(as.factor(statPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
+cmPosition <- confusionMatrix(as.factor(statPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
 print(cmPosition)
 ```
 The accuracy is lower than we imagined, with 76% accuracy.
@@ -490,7 +504,7 @@ abline(a = 0, b = 1)
 ```
 The AUC and ROC are not terrible, but maybe including a different stat will result in a better model. Using the overall of the defence player instead of their individual stats in particular positions would make a good second model.
 
-### Testing Defence Player Overall
+### Logistic Regression: Testing Defence Player Overall
 ```{R}
 glmOverall <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(overall), data = trainDataPlayers, family = binomial())
 
@@ -499,7 +513,7 @@ overallPred <- ifelse(overallPred >= 0, TRUE, FALSE)
 cmPlayerOverall <- confusionMatrix(as.factor(overallPred), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
 print(cmPlayerOverall)
 ```
-We got a slightly better accuracy with an increase of 1%.
+Here, **"gkOverall" is the overall stat of the goalkeeper, while "overall" is the overall stat of the defender.** We got a slightly better accuracy with an increase of 1%.
 
 ```{R}
 pred2 <- predict(glmOverall, testDataPlayers)
@@ -516,14 +530,14 @@ abline(a = 0, b = 1)
 ```
 And also a very small increase in AUC. Using overall better encapsulates the abilties of a player than individual positions, which may have lead to this increase. Lastly, adding the date a player joins the team might affect the accuracy.
 
-### Testing Defence Player Overall and Date Joined Club
+### Logistic Regression: Testing Defence Player Overall and Date Joined Club
 ```{R}
 glmOverallDate <- glm(as.factor(as.numeric(gkOverall) > mean(as.numeric(gkOverall))) ~ as.numeric(overall) + club_joined_date, data = trainDataPlayers, family = binomial())
 summary(glmOverallDate)
 
 overallPredDate <- predict(glmOverallDate, testDataPlayers)
 overallPredDate <- ifelse(overallPredDate >= 0, TRUE, FALSE)
-cmOverallDate <- confusionMatrix(as.factor(overallPredDate), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall)))) # Acc: 0.9243
+cmOverallDate <- confusionMatrix(as.factor(overallPredDate), as.factor(as.numeric(testDataPlayers$gkOverall) > mean(as.numeric(testDataPlayers$gkOverall))))
 print(cmOverallDate)
 ```
 The accuracy improves a bit with the new predictor.

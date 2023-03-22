@@ -130,6 +130,10 @@ for (team in unique(teams$team_id)){
     }
 }
 
+sample.int(37666625, 1, replace = TRUE)
+
+max(na.omit(newTeams$coach_id))
+
 # Replaces NA values in coach_id column with median of coach_id
 val <- median(na.omit(newTeams$coach_id))
 newTeams$coach_id[is.na(newTeams$coach_id)] <- val
